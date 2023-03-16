@@ -31,6 +31,11 @@ public class FAT16X {
 
     public static final int ENTRY_SIZE = 32;
 
+    /**
+     * 协议规定的最大可申请的簇号，FAT取值定义中的约束
+     */
+    public static final int MAX_CLUSTER_CAN_APPLY = 0xFFEF;
+
     protected static final char[] FILE_SIZE_UNITS = new char[] { 'B', 'K', 'M', 'G', 'T' };
 
     BootSector bootSector = new BootSector();

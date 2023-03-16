@@ -1,26 +1,10 @@
 package utils;
 
-import dirven.DiskDriven;
 import protocol.FAT16X;
 
 import java.util.Arrays;
 
 public class FsHelper {
-
-    public static int getSectorIdx(int clusterIdx, int offset) {
-        FAT16X.BootSector bootSector = DiskDriven.getDisk().getFs().getBootSector();
-        int addr = clusterIdx * bootSector.getSectorsPerCluster() * bootSector.getBytesPerSector() + offset;
-        if(clusterIdx == 0) {
-            // 首个cluster需要加上BootSector大小
-            addr += DiskDriven.getDisk().sectorSize();
-        }
-        return addr / DiskDriven.getDisk().sectorSize();
-    }
-
-    public static byte[] concat(byte[] first, int offset, byte[] second) {
-        System.arraycopy(second, 0, first, offset, second.length);
-        return first;
-    }
 
     public static FAT16X.DirectoryEntry[] addEntry(FAT16X.DirectoryEntry[] first, FAT16X.DirectoryEntry second) {
         FAT16X.DirectoryEntry[] result = Arrays.copyOf(first, first.length + 1);

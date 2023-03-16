@@ -63,12 +63,22 @@ public class Disk implements IDisk {
                 break;
             }
         }
+
         // 如果FAT表为空，则初始化
         if(fatTable[0] == FAT16X.EMPTY_BYTE) {
             fatTable[0] = fs.getBootSector().getMediaDescriptor();
             // todo: check logic
             for (int i = fatStartClusterIdx(); i < fatEndClusterIdx(); i++) {
                 fatTable[i] = FAT16X.FAT16X_EOC;
+            }
+
+            // 初始化副本
+            for (int i = 1; i < fs.getBootSector().getNumberOfFATCopies(); i++) {
+                int start = fatEndClusterIdx() + (i - 1) * (fatEndClusterIdx() - fatStartClusterIdx());
+                int end = fatEndClusterIdx() + i * (fatEndClusterIdx() - fatStartClusterIdx());
+                for (int j = start; j < end; j++) {
+                    fatTable[j] = FAT16X.FAT16X_EOC;
+                }
             }
         }
         fs.setFatTable(fatTable);

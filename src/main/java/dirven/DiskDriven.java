@@ -42,42 +42,6 @@ public class DiskDriven {
         storeFat();
     }
 
-    private static void storeFat() {
-        short[] fatTable = disk.getFs().getFatTable();
-        byte[] sectorData = new byte[disk.sectorSize()];
-        int mod = disk.sectorSize() / 2;
-        int startClusterIdx = disk.fatStartClusterIdx();
-        for (int i = 0; i < fatTable.length; i++) {
-            System.arraycopy(Transfer.short2Bytes(fatTable[i]), 0, sectorData, (i * 2) % disk.sectorSize(), 2);
-            if((i + 1) % mod == 0) {
-                int sectorIdx = startClusterIdx * disk.getFs().getBootSector().getSectorsPerCluster() + i / mod;
-                disk.writeSector(sectorIdx, sectorData);
-                sectorData = new byte[disk.sectorSize()];
-            }
-        }
-        if(!FsHelper.isEmpty(sectorData)) {
-            int sectorIdx = startClusterIdx * disk.getFs().getBootSector().getSectorsPerCluster() + (int) Math.ceil(fatTable.length * 1.0 / mod);
-            disk.writeSector(sectorIdx, sectorData);
-        }
-        // todo：FAT副本拷贝
-    }
-
-    private static void storeRootDirectory() {
-        FAT16X.DirectoryEntry[] entries = disk.getFs().getRootDirectory();
-        byte[] sectorData = new byte[disk.sectorSize()];
-        int mod = disk.sectorSize() / FAT16X.ENTRY_SIZE;
-        for (int i = 0; i < entries.length; i++) {
-            System.arraycopy(entries[i].toBytes(), 0, sectorData, (i * FAT16X.ENTRY_SIZE) % disk.sectorSize(), FAT16X.ENTRY_SIZE);
-            if((i + 1) % mod == 0) {
-                disk.writeSector((i + 1) / mod, sectorData);
-                sectorData = new byte[disk.sectorSize()];
-            }
-        }
-        if(!FsHelper.isEmpty(sectorData)) {
-            disk.writeSector((int) Math.ceil(entries.length * 1.0 / mod), sectorData);
-        }
-    }
-
     public static FAT16X.DirectoryEntry createFile(String absolutePath, int fizeSize) {
         String fileName = InputParser.getFileName(absolutePath);
         String fileExt = InputParser.getFileExtension(absolutePath);
@@ -104,38 +68,6 @@ public class DiskDriven {
                 .build();
         dir.setFileName(InputParser.getFileName(dirName));
         return createFileEntry(absolutePath, dir);
-    }
-
-    private static FAT16X.DirectoryEntry createFileEntry(String absolutePath, FAT16X.DirectoryEntry fileEntry) {
-        // todo：优化查询次数
-        FAT16X.DirectoryEntry dirEntry = findEntry(absolutePath);
-        if(dirEntry != null) {
-            throw new IllegalArgumentException("file already exists: " + absolutePath);
-        }
-
-        String parentPath = InputParser.getFileParentPath(absolutePath);
-
-        if(InputParser.isRoot(parentPath)) {
-            return createRootFileEntry(fileEntry);
-        }
-
-        FAT16X.DirectoryEntry parentEntry = findEntry(parentPath);
-
-        if(parentEntry == null) {
-            throw new IllegalArgumentException("no such file or directory: " + absolutePath);
-        }
-
-        int allocClusterIdx = allocEmptyCluster();
-        fileEntry.setStartingCluster((short) allocClusterIdx);
-
-        // todo：有优化空间：只读写最后一个cluster即可
-        FAT16X.DirectoryEntry[] entries = readDirEntries(parentEntry);
-        writeDirEntries(parentEntry, FsHelper.addEntry(entries, fileEntry));
-
-        // 更新父目录的信息
-        updateParentEntryTimeStamp(parentPath, parentEntry);
-        storeFat();
-        return fileEntry;
     }
 
     public static FAT16X.DirectoryEntry createRootFileEntry(FAT16X.DirectoryEntry fileEntry) {
@@ -263,6 +195,29 @@ public class DiskDriven {
         storeFat();
     }
 
+    public static String getAbsolutePath(String path) {
+        if(!InputParser.isRoot(path) && path.endsWith("/")) {
+            path = path.substring(0, path.length() - 1);
+        }
+
+        if(InputParser.isAbsolutePath(path)) {
+            return InputParser.trimPath(path);
+        } else {
+            if(InputParser.isRoot(getCurrentPath())) {
+                return InputParser.trimPath(getCurrentPath() + path);
+            } else {
+                return InputParser.trimPath(getCurrentPath() + "/" + path);
+            }
+        }
+    }
+
+    /**
+     * 按照绝对路径查找DirectoryEntry
+     */
+    public static FAT16X.DirectoryEntry findEntry(String absolutePath) {
+        return findEntry(InputParser.getFilePathArr(absolutePath));
+    }
+
     /**
      * 写文件夹条目信息
      */
@@ -340,29 +295,6 @@ public class DiskDriven {
         }
     }
 
-    public static String getAbsolutePath(String path) {
-        if(!InputParser.isRoot(path) && path.endsWith("/")) {
-            path = path.substring(0, path.length() - 1);
-        }
-
-        if(InputParser.isAbsolutePath(path)) {
-            return InputParser.trimPath(path);
-        } else {
-            if(InputParser.isRoot(getCurrentPath())) {
-                return InputParser.trimPath(getCurrentPath() + path);
-            } else {
-                return InputParser.trimPath(getCurrentPath() + "/" + path);
-            }
-        }
-    }
-
-    /**
-     * 按照绝对路径查找DirectoryEntry
-     */
-    public static FAT16X.DirectoryEntry findEntry(String absolutePath) {
-        return findEntry(InputParser.getFilePathArr(absolutePath));
-    }
-
     private static FAT16X.DirectoryEntry findEntry(String[] paths) {
         FAT16X.DirectoryEntry entry = null;
         FAT16X.DirectoryEntry[] findRange = disk.getFs().getRootDirectory();
@@ -375,6 +307,10 @@ public class DiskDriven {
             } else {
                 findRange = new FAT16X.DirectoryEntry[0];
             }
+        }
+        // 更新访问时间戳
+        if(entry != null) {
+            entry.setLastAccessDateStamp(DateUtil.getCurrentDateTimeStamp());
         }
         return entry;
     }
@@ -391,7 +327,9 @@ public class DiskDriven {
     private static int allocEmptyCluster() {
         int clusterIdx = -1;
         short[] fatTable = disk.getFs().getFatTable();
-        for (int i = 2; i < fatTable.length; i++) {
+
+        // 偏移量1，因为0号簇是保留的；没有提前计算FAT及其副本占用的簇，可以算但是优先级不高
+        for (int i = 1; i <= FAT16X.MAX_CLUSTER_CAN_APPLY; i++) {
             if(fatTable[i] == FAT16X.FAT16X_FREE_CLUSTER) {
                 clusterIdx = i;
                 break;
@@ -402,5 +340,85 @@ public class DiskDriven {
         }
         fatTable[clusterIdx] = FAT16X.FAT16X_END_OF_FILE;
         return clusterIdx;
+    }
+
+    private static void storeFat() {
+        short[] fatTable = disk.getFs().getFatTable();
+        byte[] sectorData = new byte[disk.sectorSize()];
+        int mod = disk.sectorSize() / 2;
+        int startClusterIdx = disk.fatStartClusterIdx();
+        for (int i = 0; i < fatTable.length; i++) {
+            System.arraycopy(Transfer.short2Bytes(fatTable[i]), 0, sectorData, (i * 2) % disk.sectorSize(), 2);
+            if((i + 1) % mod == 0) {
+                int sectorIdx = startClusterIdx * disk.getFs().getBootSector().getSectorsPerCluster() + i / mod;
+                disk.writeSector(sectorIdx, sectorData);
+                sectorData = new byte[disk.sectorSize()];
+            }
+        }
+        if(!FsHelper.isEmpty(sectorData)) {
+            int sectorIdx = startClusterIdx * disk.getFs().getBootSector().getSectorsPerCluster() + (int) Math.ceil(fatTable.length * 1.0 / mod);
+            disk.writeSector(sectorIdx, sectorData);
+        }
+
+        // FAT副本拷贝
+        copyFat();
+    }
+
+    private static void copyFat() {
+        for (int i = 1; i < disk.getFs().getBootSector().getNumberOfFATCopies(); i++) {
+            int inc = disk.fatEndClusterIdx() - disk.fatStartClusterIdx();
+            for (int j = disk.fatStartClusterIdx(); j < disk.fatEndClusterIdx(); j++) {
+                byte[] clusterData = disk.readCluster(j);
+                disk.writeCluster(j + inc * i, clusterData);
+            }
+        }
+    }
+
+    private static void storeRootDirectory() {
+        FAT16X.DirectoryEntry[] entries = disk.getFs().getRootDirectory();
+        byte[] sectorData = new byte[disk.sectorSize()];
+        int mod = disk.sectorSize() / FAT16X.ENTRY_SIZE;
+        for (int i = 0; i < entries.length; i++) {
+            System.arraycopy(entries[i].toBytes(), 0, sectorData, (i * FAT16X.ENTRY_SIZE) % disk.sectorSize(), FAT16X.ENTRY_SIZE);
+            if((i + 1) % mod == 0) {
+                disk.writeSector((i + 1) / mod, sectorData);
+                sectorData = new byte[disk.sectorSize()];
+            }
+        }
+        if(!FsHelper.isEmpty(sectorData)) {
+            disk.writeSector((int) Math.ceil(entries.length * 1.0 / mod), sectorData);
+        }
+    }
+
+    private static FAT16X.DirectoryEntry createFileEntry(String absolutePath, FAT16X.DirectoryEntry fileEntry) {
+        // todo：优化查询次数
+        FAT16X.DirectoryEntry dirEntry = findEntry(absolutePath);
+        if(dirEntry != null) {
+            throw new IllegalArgumentException("file already exists: " + absolutePath);
+        }
+
+        String parentPath = InputParser.getFileParentPath(absolutePath);
+
+        if(InputParser.isRoot(parentPath)) {
+            return createRootFileEntry(fileEntry);
+        }
+
+        FAT16X.DirectoryEntry parentEntry = findEntry(parentPath);
+
+        if(parentEntry == null) {
+            throw new IllegalArgumentException("no such file or directory: " + absolutePath);
+        }
+
+        int allocClusterIdx = allocEmptyCluster();
+        fileEntry.setStartingCluster((short) allocClusterIdx);
+
+        // todo：有优化空间：只读写最后一个cluster即可
+        FAT16X.DirectoryEntry[] entries = readDirEntries(parentEntry);
+        writeDirEntries(parentEntry, FsHelper.addEntry(entries, fileEntry));
+
+        // 更新父目录的信息
+        updateParentEntryTimeStamp(parentPath, parentEntry);
+        storeFat();
+        return fileEntry;
     }
 }
