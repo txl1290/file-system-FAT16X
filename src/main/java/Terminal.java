@@ -17,7 +17,7 @@ class Terminal {
     public static void main(String... args) {
         Scanner scanner = new Scanner(System.in);
         String input;
-        do {
+        while (true) {
             System.out.print(DiskDriven.getDisk().getFs().getBootSector().getOemName() + "：");
             input = scanner.nextLine();
             String command = InputParser.getCommand(input);
@@ -38,12 +38,14 @@ class Terminal {
             } else if("cat".equals(command)) {
                 new CommandLine(new Cat()).execute(InputParser.getArgs(input));
             } else if("ll".equals(command)) {
-                input += " -l";
-                new CommandLine(new Ls()).execute(InputParser.getArgs(input));
+                new CommandLine(new Ls()).execute(InputParser.getArgs(input + " -l"));
+            } else if("exit".equals(command)) {
+                System.out.println("Bye!");
+                break;
             } else {
                 System.out.println("command " + command + " not found : "
                         + "you can use 'cd', 'echo', 'ls', 'mkdir', 'pwd', 'touch', 'cat', 'll' command to operate the file system");
             }
-        } while (!"exit".equals(input));
+        }
     }
 }

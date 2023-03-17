@@ -20,7 +20,15 @@ public class Disk implements IDisk {
 
     public Disk() {
         fs = new FAT16X();
-        fs.setDataRegion(new File("src/main/resources/disk"));
+        File file = new File("disk");
+        if(!file.exists()) {
+            try {
+                file.createNewFile();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        fs.setDataRegion(file);
         init();
     }
 
