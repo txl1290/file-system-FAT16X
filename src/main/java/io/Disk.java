@@ -53,7 +53,7 @@ public class Disk implements IDisk {
             }
             entries.addAll(Transfer.bytesToEntries(sectorData));
         }
-        fs.setRootDirectory(entries.toArray(new FAT16X.DirectoryEntry[entries.size()]));
+        fs.setRootDirectory(entries.toArray(new FAT16X.DirectoryEntry[0]));
     }
 
     private void initFatTable() {

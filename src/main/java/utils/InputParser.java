@@ -6,7 +6,9 @@ import java.util.Stack;
 public class InputParser {
 
     public static String getCommand(String input) {
-        return Arrays.stream(input.split("\\s+")).findFirst().get();
+        String command = Arrays.stream(input.split("\\s+")).findFirst().get();
+        //首字母大写
+        return command.substring(0, 1).toUpperCase() + command.substring(1).toLowerCase();
     }
 
     public static String[] getArgs(String input) {

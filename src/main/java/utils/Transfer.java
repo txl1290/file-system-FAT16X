@@ -2,7 +2,6 @@ package utils;
 
 import protocol.FAT16X;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,10 +36,6 @@ public class Transfer {
                 (b[2] & 0xFF) << 8 |
                 (b[1] & 0xFF) << 16 |
                 (b[0] & 0xFF) << 24;
-    }
-
-    public static String bytesToString(byte[] b) {
-        return new String(b, StandardCharsets.UTF_8);
     }
 
     public static List<FAT16X.DirectoryEntry> bytesToEntries(byte[] data) {

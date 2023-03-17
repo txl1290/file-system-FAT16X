@@ -84,7 +84,7 @@ public class Ls implements Runnable {
                 } else {
                     builder.append("rwx");
                 }
-                builder.append("\t").append(entry.getHumanReadableFileSize()).append("\t").append(entry.getLaseWriteTime()).append("\t")
+                builder.append("\t").append(entry.getHumanReadableFileSize()).append("\t").append(entry.getLastWriteTime()).append("\t")
                         .append(colorName);
                 fileDetail = builder.toString();
             }
@@ -92,13 +92,13 @@ public class Ls implements Runnable {
             if(i == entries.length - 1) {
                 content.append(fileDetail);
             } else {
-                content.append(fileDetail + "\n");
+                content.append(fileDetail).append("\n");
             }
         }
     }
 
     private void listFile(FAT16X.DirectoryEntry file) {
-        content.append("\033[0m" + file.getFullName());
+        content.append("\033[0m").append(file.getFullName());
     }
 
     private void listRootDir() {

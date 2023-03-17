@@ -122,8 +122,7 @@ public class DiskDriven {
                 }
                 clusterCount++;
                 clusterIdx = fatTable[clusterIdx];
-                // todo：判断不精确 0003h - FFEFh
-            } while (clusterIdx != FAT16X.FAT16X_END_OF_FILE);
+            } while (clusterIdx >= FAT16X.MIN_CLUSTER_CAN_APPLY && clusterIdx <= FAT16X.MAX_CLUSTER_CAN_APPLY);
         }
         return content;
     }
@@ -140,10 +139,9 @@ public class DiskDriven {
                 byte[] clusterData = disk.readCluster(startClusterIdx);
                 entries = Transfer.bytesToEntries(clusterData);
                 startClusterIdx = fatTable[startClusterIdx];
-                // todo：判断不精确 0003h - FFEFh
-            } while (startClusterIdx != FAT16X.FAT16X_END_OF_FILE);
+            } while (startClusterIdx >= FAT16X.MIN_CLUSTER_CAN_APPLY && startClusterIdx <= FAT16X.MAX_CLUSTER_CAN_APPLY);
         }
-        return entries.toArray(new FAT16X.DirectoryEntry[entries.size()]);
+        return entries.toArray(new FAT16X.DirectoryEntry[0]);
     }
 
     /**
@@ -238,7 +236,7 @@ public class DiskDriven {
             // 更新父目录的条目
             FAT16X.DirectoryEntry parentEntry = findEntry(parentPath);
             if(parentEntry == null) {
-                throw new RuntimeException("no such file or directory: " + parentPath);
+                throw new IllegalStateException("no such file or directory: " + parentPath);
             }
             updateEntryToDisk(parentEntry, entry);
 
@@ -342,6 +340,9 @@ public class DiskDriven {
         return clusterIdx;
     }
 
+    /**
+     * 将FAT写入磁盘
+     */
     private static void storeFat() {
         short[] fatTable = disk.getFs().getFatTable();
         byte[] sectorData = new byte[disk.sectorSize()];
@@ -364,6 +365,9 @@ public class DiskDriven {
         copyFat();
     }
 
+    /**
+     * 将FAT副本拷贝到磁盘
+     */
     private static void copyFat() {
         for (int i = 1; i < disk.getFs().getBootSector().getNumberOfFATCopies(); i++) {
             int inc = disk.fatEndClusterIdx() - disk.fatStartClusterIdx();
@@ -374,6 +378,9 @@ public class DiskDriven {
         }
     }
 
+    /**
+     * 将根目录写入磁盘
+     */
     private static void storeRootDirectory() {
         FAT16X.DirectoryEntry[] entries = disk.getFs().getRootDirectory();
         byte[] sectorData = new byte[disk.sectorSize()];

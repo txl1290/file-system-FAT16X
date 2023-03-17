@@ -1,11 +1,4 @@
-import command.Cat;
-import command.Cd;
-import command.Echo;
-import command.Format;
 import command.Ls;
-import command.Mkdir;
-import command.Pwd;
-import command.Touch;
 import dirven.DiskDriven;
 import picocli.CommandLine;
 import utils.InputParser;
@@ -21,30 +14,24 @@ class Terminal {
             System.out.print(DiskDriven.getDisk().getFs().getBootSector().getOemName() + "：");
             input = scanner.nextLine();
             String command = InputParser.getCommand(input);
-            if("format".equals(command)) {
-                new CommandLine(new Format()).execute();
-            } else if("cd".equals(command)) {
-                new CommandLine(new Cd()).execute(InputParser.getArgs(input));
-            } else if("echo".equals(command)) {
-                new CommandLine(new Echo()).execute(InputParser.getArgs(input));
-            } else if("ls".equals(command)) {
-                new CommandLine(new Ls()).execute(InputParser.getArgs(input));
-            } else if("mkdir".equals(command)) {
-                new CommandLine(new Mkdir()).execute(InputParser.getArgs(input));
-            } else if("pwd".equals(command)) {
-                new CommandLine(new Pwd()).execute(InputParser.getArgs(input));
-            } else if("touch".equals(command)) {
-                new CommandLine(new Touch()).execute(InputParser.getArgs(input));
-            } else if("cat".equals(command)) {
-                new CommandLine(new Cat()).execute(InputParser.getArgs(input));
-            } else if("ll".equals(command)) {
-                new CommandLine(new Ls()).execute(InputParser.getArgs(input + " -l"));
-            } else if("exit".equals(command)) {
-                System.out.println("Bye!");
-                break;
-            } else {
+            try {
+                if("ll".equalsIgnoreCase(command)) {
+                    new CommandLine(new Ls()).execute(InputParser.getArgs(input + " -l"));
+                } else if("exit".equalsIgnoreCase(command)) {
+                    System.out.println("Bye!");
+                    break;
+                } else {
+                    Class<?> clazz = Class.forName("command." + command);
+                    if(clazz.isAnnotationPresent(CommandLine.Command.class)) {
+                        CommandLine commandLine = new CommandLine(clazz.newInstance());
+                        commandLine.execute(InputParser.getArgs(input));
+                    }
+                }
+            } catch (ClassNotFoundException e) {
                 System.out.println("command " + command + " not found : "
-                        + "you can use 'cd', 'echo', 'ls', 'mkdir', 'pwd', 'touch', 'cat', 'll' command to operate the file system");
+                        + "you can use 'cd', 'echo', 'ls', 'mkdir', 'pwd', 'touch', 'cat', 'll' command to operate the file system or use 'exit' command to exit the terminal");
+            } catch (Exception e) {
+                System.out.println(e.getMessage());
             }
         }
     }
