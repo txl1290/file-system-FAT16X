@@ -38,7 +38,8 @@ class Terminal {
             } else if("cat".equals(command)) {
                 new CommandLine(new Cat()).execute(InputParser.getArgs(input));
             } else if("ll".equals(command)) {
-                new CommandLine(new Ls()).execute("-l");
+                input += " -l";
+                new CommandLine(new Ls()).execute(InputParser.getArgs(input));
             } else {
                 System.out.println("command " + command + " not found : "
                         + "you can use 'cd', 'echo', 'ls', 'mkdir', 'pwd', 'touch', 'cat', 'll' command to operate the file system");

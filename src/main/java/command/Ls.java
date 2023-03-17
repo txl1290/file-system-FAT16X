@@ -10,6 +10,9 @@ import java.nio.charset.StandardCharsets;
 @CommandLine.Command(name = "ls", mixinStandardHelpOptions = true, description = "show the files and dirs in a designated path")
 public class Ls implements Runnable {
 
+    @CommandLine.Parameters(arity = "0..1", description = "The path")
+    private String path;
+
     @CommandLine.Option(names = "-l", description = "Show the details of the files and dirs")
     private boolean showDetails;
 
@@ -24,7 +27,10 @@ public class Ls implements Runnable {
     @Override
     public void run() {
         try {
-            String absolutePath = DiskDriven.getAbsolutePath(DiskDriven.getCurrentPath());
+            if(path == null) {
+                path = DiskDriven.getCurrentPath();
+            }
+            String absolutePath = DiskDriven.getAbsolutePath(path);
             if(InputParser.isRoot(absolutePath)) {
                 listRootDir();
             } else {
@@ -82,7 +88,7 @@ public class Ls implements Runnable {
                         .append(colorName);
                 fileDetail = builder.toString();
             }
-            
+
             if(i == entries.length - 1) {
                 content.append(fileDetail);
             } else {
