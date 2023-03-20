@@ -12,7 +12,7 @@ class Terminal {
         String input;
         while (true) {
             System.out.print(DiskDriven.getDisk().getFs().getBootSector().getOemName() + "：");
-            input = scanner.nextLine();
+            input = scanner.nextLine().trim();
             String command = InputParser.getCommand(input);
             try {
                 if("ll".equalsIgnoreCase(command)) {

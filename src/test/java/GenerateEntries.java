@@ -100,7 +100,7 @@ public class GenerateEntries {
     /**
      * 测试磁盘满的情况(很慢)
      */
-    //@Test(expected = IllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void testFullDisk() {
         for (int i = 0; i <= DiskDriven.getDisk().clusterCount(); i++) {
             //随机生成文件名
