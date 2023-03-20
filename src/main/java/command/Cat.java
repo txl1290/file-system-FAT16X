@@ -25,7 +25,7 @@ public class Cat implements Runnable {
             if(redirectPath == null) {
                 System.out.println(new String(content));
             } else {
-                DiskDriven.outputRedirect(content, redirectPath);
+                DiskDriven.writeFileContent(redirectPath, content);
             }
         } catch (Exception e) {
             System.out.println("cat: " + e.getMessage());

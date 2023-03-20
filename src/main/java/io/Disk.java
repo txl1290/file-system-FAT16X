@@ -8,7 +8,6 @@ import utils.Transfer;
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 @Data
@@ -158,7 +157,6 @@ public class Disk implements IDisk {
 
     public void freeCluster(int clusterIdx) {
         byte[] clusterData = new byte[clusterSize()];
-        Arrays.fill(clusterData, FAT16X.EMPTY_BYTE);
         writeCluster(clusterIdx, clusterData);
         fs.getFatTable()[clusterIdx] = FAT16X.FAT16X_FREE_CLUSTER;
     }
@@ -166,7 +164,6 @@ public class Disk implements IDisk {
     public void clean() {
         int sectorIdx = 0;
         byte[] empty = new byte[sectorSize()];
-        Arrays.fill(empty, FAT16X.EMPTY_BYTE);
         while (sectorIdx < sectorCount()) {
             writeSector(sectorIdx, empty);
             sectorIdx++;

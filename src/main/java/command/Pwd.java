@@ -14,7 +14,7 @@ public class Pwd implements Runnable {
         if(redirectPath == null) {
             System.out.println(DiskDriven.getCurrentPath());
         } else {
-            DiskDriven.outputRedirect(DiskDriven.getCurrentPath().getBytes(), redirectPath);
+            DiskDriven.writeFileContent(redirectPath, DiskDriven.getCurrentPath().getBytes());
         }
     }
 }

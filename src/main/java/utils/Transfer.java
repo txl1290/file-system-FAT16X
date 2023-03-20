@@ -51,4 +51,8 @@ public class Transfer {
         }
         return entries;
     }
+
+    public static int short2Int(short a) {
+        return a & 0xffff;
+    }
 }

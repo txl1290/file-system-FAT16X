@@ -49,7 +49,7 @@ public class Ls implements Runnable {
             if(redirectPath == null) {
                 System.out.println(content.toString());
             } else {
-                DiskDriven.outputRedirect(content.toString().getBytes(StandardCharsets.UTF_8), redirectPath);
+                DiskDriven.writeFileContent(redirectPath, content.toString().getBytes(StandardCharsets.UTF_8));
             }
         } catch (Exception e) {
             System.out.println("ls: " + e.getMessage());
@@ -58,10 +58,10 @@ public class Ls implements Runnable {
 
     private void listDir(FAT16X.DirectoryEntry dir) {
         FAT16X.DirectoryEntry[] entries = DiskDriven.readDirEntries(dir);
-        listDir(entries);
+        listEntries(entries);
     }
 
-    private void listDir(FAT16X.DirectoryEntry[] entries) {
+    private void listEntries(FAT16X.DirectoryEntry[] entries) {
         for (int i = 0; i < entries.length; i++) {
             FAT16X.DirectoryEntry entry = entries[i];
             String colorName = entry.getFullName();
@@ -98,11 +98,11 @@ public class Ls implements Runnable {
     }
 
     private void listFile(FAT16X.DirectoryEntry file) {
-        content.append("\033[0m").append(file.getFullName());
+        listEntries(new FAT16X.DirectoryEntry[] { file });
     }
 
     private void listRootDir() {
         FAT16X.DirectoryEntry[] entries = DiskDriven.getDisk().getFs().getRootDirectory();
-        listDir(entries);
+        listEntries(entries);
     }
 }

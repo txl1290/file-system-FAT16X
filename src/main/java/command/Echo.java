@@ -16,12 +16,15 @@ public class Echo implements Runnable {
 
     @Override
     public void run() {
-        String content = String.join(" ", contents);
-        if(redirectPath == null) {
-            System.out.println(content);
-        } else {
-            byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
-            DiskDriven.outputRedirect(contentBytes, redirectPath);
+        try {
+            String content = String.join(" ", contents);
+            if(redirectPath == null) {
+                System.out.println(content);
+            } else {
+                DiskDriven.writeFileContent(redirectPath, content.getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (Exception e) {
+            System.out.println("echo: " + e.getMessage());
         }
     }
 }

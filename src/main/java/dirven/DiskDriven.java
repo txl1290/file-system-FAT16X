@@ -84,23 +84,24 @@ public class DiskDriven {
     }
 
     /**
-     * 输出重定向
+     * 写文件内容，并更新文件元信息
      */
-    public static void outputRedirect(byte[] content, String redirectPath) {
+    public static void writeFileContent(String redirectPath, byte[] content) {
         String absolutePath = getAbsolutePath(redirectPath);
-        FAT16X.DirectoryEntry redirectFile = findEntry(absolutePath);
-        if(redirectFile == null) {
+        FAT16X.DirectoryEntry file = findEntry(absolutePath);
+        if(file == null) {
             // create a new file
-            redirectFile = createFile(absolutePath, content.length);
-        } else {
-            // replace the file's content
-            String parentPath = InputParser.getFileParentPath(absolutePath);
-            redirectFile.setFileSize(content.length);
-            redirectFile.setLastWriteTimeStamp(DateUtil.getCurrentTime());
-            redirectFile.setLastAccessDateStamp(DateUtil.getCurrentDateTimeStamp());
-            updateEntryToDisk(parentPath, redirectFile);
+            file = createFile(absolutePath, 0);
         }
-        writeFileContent(redirectFile, content);
+
+        writeFileContent(file, content);
+
+        // 写文件有可能失败，所以需要后更新文件元信息
+        String parentPath = InputParser.getFileParentPath(absolutePath);
+        file.setFileSize(content.length);
+        file.setLastWriteTimeStamp(DateUtil.getCurrentTime());
+        file.setLastAccessDateStamp(DateUtil.getCurrentDateTimeStamp());
+        updateEntryToDisk(parentPath, file);
     }
 
     /**
@@ -109,7 +110,7 @@ public class DiskDriven {
     public static byte[] readFileContent(FAT16X.DirectoryEntry entry) {
         byte[] content = new byte[entry.getFileSize()];
         if(entry.isFile()) {
-            int clusterIdx = entry.getStartingCluster();
+            int clusterIdx = Transfer.short2Int(entry.getStartingCluster());
             short[] fatTable = disk.getFs().getFatTable();
             int clusterCount = 0;
             do {
@@ -121,7 +122,7 @@ public class DiskDriven {
                     System.arraycopy(clusterData, 0, content, offset, clusterData.length);
                 }
                 clusterCount++;
-                clusterIdx = fatTable[clusterIdx];
+                clusterIdx = Transfer.short2Int(fatTable[clusterIdx]);
             } while (clusterIdx >= FAT16X.MIN_CLUSTER_CAN_APPLY && clusterIdx <= FAT16X.MAX_CLUSTER_CAN_APPLY);
         }
         return content;
@@ -133,28 +134,29 @@ public class DiskDriven {
     public static FAT16X.DirectoryEntry[] readDirEntries(FAT16X.DirectoryEntry entry) {
         List<FAT16X.DirectoryEntry> entries = new ArrayList<>();
         if(entry.isDir()) {
-            int startClusterIdx = entry.getStartingCluster();
+            int startClusterIdx = Transfer.short2Int(entry.getStartingCluster());
             short[] fatTable = disk.getFs().getFatTable();
             do {
                 byte[] clusterData = disk.readCluster(startClusterIdx);
-                entries = Transfer.bytesToEntries(clusterData);
-                startClusterIdx = fatTable[startClusterIdx];
+                entries.addAll(Transfer.bytesToEntries(clusterData));
+                startClusterIdx = Transfer.short2Int(fatTable[startClusterIdx]);
             } while (startClusterIdx >= FAT16X.MIN_CLUSTER_CAN_APPLY && startClusterIdx <= FAT16X.MAX_CLUSTER_CAN_APPLY);
         }
         return entries.toArray(new FAT16X.DirectoryEntry[0]);
     }
 
     /**
-     * 写文件内容
+     * 文件内容持久化
      */
-    public static void writeFileContent(FAT16X.DirectoryEntry file, byte[] content) {
+    private static void writeFileContent(FAT16X.DirectoryEntry file, byte[] content) {
         // 可能会跨cluster
-        int startClusterIdx = file.getStartingCluster();
+        int startClusterIdx = Transfer.short2Int(file.getStartingCluster());
         short[] fatTable = disk.getFs().getFatTable();
         List<Integer> usedFatIdx = new ArrayList<>();
         do {
             usedFatIdx.add(startClusterIdx);
-        } while ((startClusterIdx = fatTable[startClusterIdx]) != FAT16X.FAT16X_END_OF_FILE);
+            startClusterIdx = Transfer.short2Int(fatTable[startClusterIdx]);
+        } while (startClusterIdx >= FAT16X.MIN_CLUSTER_CAN_APPLY && startClusterIdx <= FAT16X.MAX_CLUSTER_CAN_APPLY);
 
         // 计算需要的cluster数量
         int needClusterCount = (int) Math.ceil(content.length * 1.0 / disk.clusterSize());
@@ -228,6 +230,9 @@ public class DiskDriven {
         writeFileContent(dir, content);
     }
 
+    /**
+     * 更新条目信息到磁盘，并更新父目录的时间戳
+     */
     private static void updateEntryToDisk(String parentPath, FAT16X.DirectoryEntry entry) {
         if(InputParser.isRoot(parentPath)) {
             // 更新根目录的条目
