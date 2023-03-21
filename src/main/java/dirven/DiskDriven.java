@@ -58,7 +58,7 @@ public class DiskDriven {
     }
 
     public static FAT16X.DirectoryEntry makeDirectory(String absolutePath) {
-        String dirName = InputParser.getFileName(absolutePath);
+        String dirName = InputParser.getDirName(absolutePath);
         FAT16X.DirectoryEntry dir = FAT16X.DirectoryEntry.builder()
                 .creationTimeStamp(DateUtil.getCurrentTime())
                 .lastAccessDateStamp(DateUtil.getCurrentDateTimeStamp())
@@ -66,7 +66,7 @@ public class DiskDriven {
                 .attribute(FAT16X.DIR_ATTR)
                 .fileSize(0)
                 .build();
-        dir.setFileName(InputParser.getFileName(dirName));
+        dir.setFileName(dirName);
         return createDirectoryEntry(absolutePath, dir);
     }
 

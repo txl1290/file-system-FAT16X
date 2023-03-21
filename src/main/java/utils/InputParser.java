@@ -40,6 +40,11 @@ public class InputParser {
         }
     }
 
+    public static String getDirName(String path) {
+        String[] pathArr = path.split("/");
+        return pathArr[pathArr.length - 1];
+    }
+
     public static String getFileName(String path) {
         String[] pathArr = path.split("/");
         return pathArr[pathArr.length - 1].split("\\.")[0];
