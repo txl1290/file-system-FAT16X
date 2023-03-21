@@ -70,17 +70,17 @@ public class DiskDriven {
         return createDirectoryEntry(absolutePath, dir);
     }
 
-    public static FAT16X.DirectoryEntry createRootFileEntry(FAT16X.DirectoryEntry fileEntry) {
+    public static FAT16X.DirectoryEntry createRootDirectoryEntry(FAT16X.DirectoryEntry directoryEntry) {
         FAT16X.DirectoryEntry[] entries = disk.getFs().getRootDirectory();
         if(entries.length >= disk.getFs().getBootSector().getMaxRootEntries()) {
             throw new IllegalArgumentException("root directory is full");
         }
         int allocClusterIdx = allocEmptyCluster();
-        fileEntry.setStartingCluster((short) allocClusterIdx);
-        disk.getFs().setRootDirectory(FsHelper.addEntry(entries, fileEntry));
+        directoryEntry.setStartingCluster((short) allocClusterIdx);
+        disk.getFs().setRootDirectory(FsHelper.addEntry(entries, directoryEntry));
         storeRootDirectory();
         storeFat();
-        return fileEntry;
+        return directoryEntry;
     }
 
     /**
@@ -441,7 +441,7 @@ public class DiskDriven {
         String parentPath = InputParser.getFileParentPath(absolutePath);
 
         if(InputParser.isRoot(parentPath)) {
-            return createRootFileEntry(directoryEntry);
+            return createRootDirectoryEntry(directoryEntry);
         }
 
         FAT16X.DirectoryEntry parentEntry = findEntry(parentPath);
