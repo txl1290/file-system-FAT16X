@@ -20,7 +20,7 @@ public class InputParser {
         if(isAbsolutePath(path)) {
             path = path.substring(1);
         }
-        if(path.equals("")) {
+        if("".equals(path)) {
             return new String[0];
         } else {
             return path.split("/");

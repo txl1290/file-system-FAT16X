@@ -51,9 +51,6 @@ public class FAT16X {
 
     File dataRegion;
 
-    public FAT16X() {
-    }
-
     @Data
     public static class BootSector {
         byte[] jumpCode = new byte[3];
@@ -277,14 +274,15 @@ public class FAT16X {
             char[] readable = new char[5];
             Arrays.fill(readable, ' ');
 
-            int fileSize = this.fileSize;
+            int size = this.fileSize;
             int unitIdx = 0;
-            while (fileSize > 1024) {
-                fileSize = fileSize / 1024;
+            while (size > 1024) {
+                size = size / 1024;
                 unitIdx++;
             }
-            String fileSizeStr = String.valueOf(fileSize);
-            System.arraycopy(String.valueOf(fileSize).toCharArray(), 0, readable, readable.length - fileSizeStr.length() - 1, fileSizeStr.length());
+            String fileSizeStr = String.valueOf(size);
+            System.arraycopy(String.valueOf(size).toCharArray(), 0, readable, readable.length - fileSizeStr.length() - 1,
+                    fileSizeStr.length());
             System.arraycopy(FILE_SIZE_UNITS, unitIdx, readable, readable.length - 1, 1);
             return new String(readable);
         }

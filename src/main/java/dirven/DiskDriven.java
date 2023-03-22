@@ -42,7 +42,7 @@ public class DiskDriven {
         storeFat();
     }
 
-    public static FAT16X.DirectoryEntry createFile(String absolutePath, int fizeSize) {
+    public static FAT16X.DirectoryEntry createFile(String absolutePath, int fileSize) {
         String fileName = InputParser.getFileName(absolutePath);
         String fileExt = InputParser.getFileExtension(absolutePath);
 
@@ -51,7 +51,7 @@ public class DiskDriven {
                 .lastAccessDateStamp(DateUtil.getCurrentDateTimeStamp())
                 .lastWriteTimeStamp(DateUtil.getCurrentTime())
                 .attribute(FAT16X.FILE_ATTR)
-                .fileSize(fizeSize)
+                .fileSize(fileSize)
                 .build();
         file.setFileName(fileName).setFileNameExt(fileExt);
         return createDirectoryEntry(absolutePath, file);
