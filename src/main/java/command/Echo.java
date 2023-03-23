@@ -10,7 +10,7 @@ public class Echo extends Base {
     private String[] contents;
 
     @Override
-    public String executeCommand() {
+    protected String executeCommand() {
         return String.join(" ", contents);
     }
 }

@@ -21,7 +21,7 @@ public class Ls extends Base {
     private StringBuilder content = new StringBuilder();
 
     @Override
-    public String executeCommand() {
+    protected String executeCommand() {
         if(path == null) {
             path = DiskDriven.getCurrentPath();
         }
@@ -40,7 +40,7 @@ public class Ls extends Base {
                 listFile(entry);
             }
         }
-        
+
         return content.toString();
     }
 

@@ -12,7 +12,7 @@ public class Cd extends Base {
     private String dirPath;
 
     @Override
-    public String executeCommand() {
+    protected String executeCommand() {
         String absolutePath = DiskDriven.getAbsolutePath(dirPath);
         if(!InputParser.isRoot(absolutePath) && DiskDriven.findEntry(absolutePath) == null) {
             throw new IllegalArgumentException("No such file or directory: " + dirPath);

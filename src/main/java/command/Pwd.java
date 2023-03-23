@@ -8,7 +8,7 @@ import picocli.CommandLine;
 public class Pwd extends Base {
 
     @Override
-    public String executeCommand() {
+    protected String executeCommand() {
         return DiskDriven.getCurrentPath();
     }
 }

@@ -11,7 +11,7 @@ public class Mkdir extends Base {
     private String dirPath;
 
     @Override
-    public String executeCommand() {
+    protected String executeCommand() {
         DiskDriven.makeDirectory(DiskDriven.getAbsolutePath(dirPath));
         return "";
     }

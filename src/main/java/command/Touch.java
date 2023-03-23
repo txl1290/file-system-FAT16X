@@ -11,7 +11,7 @@ public class Touch extends Base {
     private String path;
 
     @Override
-    public String executeCommand() {
+    protected String executeCommand() {
         DiskDriven.createFile(DiskDriven.getAbsolutePath(path), 0);
         return "";
     }

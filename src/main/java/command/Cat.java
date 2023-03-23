@@ -12,7 +12,7 @@ public class Cat extends Base {
     private String path;
 
     @Override
-    public String executeCommand() {
+    protected String executeCommand() {
         FAT16X.DirectoryEntry fileEntry = DiskDriven.findEntry(DiskDriven.getAbsolutePath(path));
         if(fileEntry == null) {
             throw new IllegalArgumentException("file not found " + path);
