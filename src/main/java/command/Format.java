@@ -1,10 +1,11 @@
 package command;
 
+import command.base.Base;
 import dirven.DiskDriven;
 import picocli.CommandLine;
 
 @CommandLine.Command(name = "format", mixinStandardHelpOptions = true, description = "format the file system")
-public class Format implements Runnable {
+public class Format extends Base {
 
     @Override
     public void run() {

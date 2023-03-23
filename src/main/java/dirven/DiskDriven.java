@@ -86,8 +86,8 @@ public class DiskDriven {
     /**
      * 写文件内容，并更新文件元信息
      */
-    public static void writeFileContent(String redirectPath, byte[] content) {
-        String absolutePath = getAbsolutePath(redirectPath);
+    public static void writeFileContent(String filePath, byte[] content) {
+        String absolutePath = getAbsolutePath(filePath);
         FAT16X.DirectoryEntry file = findEntry(absolutePath);
         if(file == null) {
             // create a new file
@@ -102,6 +102,20 @@ public class DiskDriven {
         file.setLastWriteTimeStamp(DateUtil.getCurrentTime());
         file.setLastAccessDateStamp(DateUtil.getCurrentDateTimeStamp());
         updateEntryToDisk(parentPath, file);
+    }
+
+    /**
+     * 追加写文件内容，并更新文件元信息
+     */
+    public static void writeFileContentAppend(String filePath, byte[] content) {
+        String absolutePath = getAbsolutePath(filePath);
+        FAT16X.DirectoryEntry file = findEntry(absolutePath);
+        if(file != null) {
+            byte[] oldContent = readFileContent(file);
+            content = FsHelper.concat(oldContent, content);
+        }
+
+        writeFileContent(filePath, content);
     }
 
     /**
@@ -158,6 +172,11 @@ public class DiskDriven {
      * 可操作部分文件内容持久化，需提前计算好增量content以及对应的startClusterIdx
      */
     private static void writeFileContent(int startClusterIdx, byte[] content) {
+        // 空内容不需要写入
+        if(content.length == 0) {
+            return;
+        }
+
         short[] fatTable = disk.getFs().getFatTable();
         List<Integer> usedFatIdx = new ArrayList<>();
         do {

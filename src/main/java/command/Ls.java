@@ -1,14 +1,13 @@
 package command;
 
+import command.base.Base;
 import dirven.DiskDriven;
 import picocli.CommandLine;
 import protocol.FAT16X;
 import utils.InputParser;
 
-import java.nio.charset.StandardCharsets;
-
 @CommandLine.Command(name = "ls", mixinStandardHelpOptions = true, description = "show the files and dirs in a designated path")
-public class Ls implements Runnable {
+public class Ls extends Base {
 
     @CommandLine.Parameters(arity = "0..1", description = "The path")
     private String path;
@@ -16,44 +15,33 @@ public class Ls implements Runnable {
     @CommandLine.Option(names = "-l", description = "Show the details of the files and dirs")
     private boolean showDetails;
 
-    @CommandLine.Option(names = ">", description = "The redirect path")
-    private String redirectPath;
-
     /**
      * The content to be redirected
      */
     private StringBuilder content = new StringBuilder();
 
     @Override
-    public void run() {
-        try {
-            if(path == null) {
-                path = DiskDriven.getCurrentPath();
-            }
-            String absolutePath = DiskDriven.getAbsolutePath(path);
-            if(InputParser.isRoot(absolutePath)) {
-                listRootDir();
-            } else {
-                FAT16X.DirectoryEntry entry = DiskDriven.findEntry(absolutePath);
-                if(entry == null) {
-                    throw new IllegalArgumentException("No such file or directory: " + DiskDriven.getCurrentPath());
-                }
-
-                if(entry.isDir()) {
-                    listDir(entry);
-                } else {
-                    listFile(entry);
-                }
-            }
-
-            if(redirectPath == null) {
-                System.out.println(content.toString());
-            } else {
-                DiskDriven.writeFileContent(redirectPath, content.toString().getBytes(StandardCharsets.UTF_8));
-            }
-        } catch (Exception e) {
-            System.out.println("ls: " + e.getMessage());
+    public String executeCommand() {
+        if(path == null) {
+            path = DiskDriven.getCurrentPath();
         }
+        String absolutePath = DiskDriven.getAbsolutePath(path);
+        if(InputParser.isRoot(absolutePath)) {
+            listRootDir();
+        } else {
+            FAT16X.DirectoryEntry entry = DiskDriven.findEntry(absolutePath);
+            if(entry == null) {
+                throw new IllegalArgumentException("No such file or directory: " + DiskDriven.getCurrentPath());
+            }
+
+            if(entry.isDir()) {
+                listDir(entry);
+            } else {
+                listFile(entry);
+            }
+        }
+        
+        return content.toString();
     }
 
     private void listDir(FAT16X.DirectoryEntry dir) {

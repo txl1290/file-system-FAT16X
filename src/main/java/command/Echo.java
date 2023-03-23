@@ -1,30 +1,16 @@
 package command;
 
-import dirven.DiskDriven;
+import command.base.Base;
 import picocli.CommandLine;
 
-import java.nio.charset.StandardCharsets;
-
 @CommandLine.Command(name = "echo", mixinStandardHelpOptions = true, description = "show the content in the terminal")
-public class Echo implements Runnable {
+public class Echo extends Base {
 
     @CommandLine.Parameters(index = "0..*", description = "The content")
     private String[] contents;
 
-    @CommandLine.Option(names = ">", description = "The redirect path")
-    private String redirectPath;
-
     @Override
-    public void run() {
-        try {
-            String content = String.join(" ", contents);
-            if(redirectPath == null) {
-                System.out.println(content);
-            } else {
-                DiskDriven.writeFileContent(redirectPath, content.getBytes(StandardCharsets.UTF_8));
-            }
-        } catch (Exception e) {
-            System.out.println("echo: " + e.getMessage());
-        }
+    public String executeCommand() {
+        return String.join(" ", contents);
     }
 }
