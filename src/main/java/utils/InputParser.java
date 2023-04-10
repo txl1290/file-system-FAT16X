@@ -7,8 +7,12 @@ public class InputParser {
 
     public static String getCommand(String input) {
         String command = Arrays.stream(input.split("\\s+")).findFirst().get();
-        //首字母大写
-        return command.substring(0, 1).toUpperCase() + command.substring(1).toLowerCase();
+        if(command.isEmpty()) {
+            return "";
+        } else {
+            //首字母大写
+            return command.substring(0, 1).toUpperCase() + command.substring(1).toLowerCase();
+        }
     }
 
     public static String[] getArgs(String input) {
@@ -58,10 +62,6 @@ public class InputParser {
         return fileNameArr[fileNameArr.length - 1];
     }
 
-    public static boolean isRoot(String path) {
-        return "/".equals(path);
-    }
-
     /**
      * 格式化掉 ./ ../
      */
@@ -69,7 +69,7 @@ public class InputParser {
         String[] paths = InputParser.getFilePathArr(path);
         Stack<String> stack = new Stack<>();
         for (String s : paths) {
-            if(".".equals(s)) {
+            if(".".equals(s) || "".equals(s)) {
                 continue;
             } else if("..".equals(s)) {
                 if(!stack.isEmpty()) {

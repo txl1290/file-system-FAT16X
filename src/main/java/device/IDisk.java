@@ -1,4 +1,4 @@
-package io;
+package device;
 
 interface IDisk {
     /**
