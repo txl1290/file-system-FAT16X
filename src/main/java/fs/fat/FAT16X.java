@@ -1,14 +1,13 @@
-package protocol;
+package fs.fat;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import utils.Transfer;
 
 import java.io.File;
-import java.text.SimpleDateFormat;
 import java.util.Arrays;
-import java.util.Date;
 
 @Data
 public class FAT16X {
@@ -41,7 +40,7 @@ public class FAT16X {
      */
     public static final int MAX_CLUSTER_CAN_APPLY = 0xFFEF;
 
-    protected static final char[] FILE_SIZE_UNITS = new char[] { 'B', 'K', 'M', 'G', 'T' };
+    public static final int FAT_START_SECTOR_IDX = 1;
 
     BootSector bootSector = new BootSector();
 
@@ -50,6 +49,58 @@ public class FAT16X {
     DirectoryEntry[] rootDirectory;
 
     File dataRegion;
+
+    public FAT16X() {
+        java.io.File file = new java.io.File("disk");
+        try {
+            if(!file.exists()) {
+                file.createNewFile();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        dataRegion = file;
+    }
+
+    public int fatStartSectorIdx() {
+        return FAT_START_SECTOR_IDX;
+    }
+
+    public int fatEndSectorIdx() {
+        return fatStartSectorIdx() + fatSectorCount() - 1;
+    }
+
+    public int fatSectorCount() {
+        return bootSector.getSectorsPerFAT();
+    }
+
+    public int rootDirStartSectorIdx() {
+        return fatStartSectorIdx() + bootSector.getNumberOfFATCopies() * fatSectorCount();
+    }
+
+    public int rootDirStartClusterIdx() {
+        return rootDirStartSectorIdx() / bootSector.getSectorsPerCluster();
+    }
+
+    public int dataRegionStartClusterIdx() {
+        return rootDirStartClusterIdx() + 1;
+    }
+
+    public int sectorSize() {
+        return bootSector.getBytesPerSector();
+    }
+
+    public long sectorCount() {
+        return 2 * 1024 * 1024 * 1024L / sectorSize();
+    }
+
+    public int clusterCount() {
+        return (int) (sectorCount() / bootSector.getSectorsPerCluster());
+    }
+
+    public int clusterSize() {
+        return bootSector.getSectorsPerCluster() * sectorSize();
+    }
 
     @Data
     public static class BootSector {
@@ -180,6 +231,7 @@ public class FAT16X {
     @Data
     @Builder
     @AllArgsConstructor
+    @NoArgsConstructor
     public static class DirectoryEntry {
         @Builder.Default
         byte[] fileName = new byte[8];
@@ -226,9 +278,6 @@ public class FAT16X {
             if(fileName.length() > this.fileName.length) {
                 throw new IllegalArgumentException("文件名不能超过8字节");
             }
-            if(!checkAscII(fileName)) {
-                throw new IllegalArgumentException("非法的文件名，文件名包含A-Z, 0-1, #, $, %, &, ', (, ), -, @之外的字符");
-            }
             this.fileName = fileName.getBytes();
             return this;
         }
@@ -237,15 +286,8 @@ public class FAT16X {
             if(fileNameExt.length() > this.fileNameExt.length) {
                 throw new IllegalArgumentException("文件名不能超过3字节");
             }
-            if(!checkAscII(fileNameExt)) {
-                throw new IllegalArgumentException("非法的文件扩展名，文件扩展名包含A-Z, 0-1, #, $, %, &, ', (, ), -, @之外的字符");
-            }
             this.fileNameExt = fileNameExt.getBytes();
             return this;
-        }
-
-        public String getLastWriteTime() {
-            return new SimpleDateFormat("yyyy/MM/dd HH:mm").format(new Date(lastWriteTimeStamp * 1000L));
         }
 
         public boolean isDir() {
@@ -270,29 +312,8 @@ public class FAT16X {
             }
         }
 
-        public String getHumanReadableFileSize() {
-            char[] readable = new char[5];
-            Arrays.fill(readable, ' ');
-
-            int size = this.fileSize;
-            int unitIdx = 0;
-            while (size > 1024) {
-                size = size / 1024;
-                unitIdx++;
-            }
-            String fileSizeStr = String.valueOf(size);
-            System.arraycopy(String.valueOf(size).toCharArray(), 0, readable, readable.length - fileSizeStr.length() - 1,
-                    fileSizeStr.length());
-            System.arraycopy(FILE_SIZE_UNITS, unitIdx, readable, readable.length - 1, 1);
-            return new String(readable);
-        }
-
         public boolean isEmpty() {
             return new String(fileName).trim().isEmpty();
-        }
-
-        public boolean equals(DirectoryEntry entry) {
-            return getFullName().equals(entry.getFullName());
         }
 
         public byte[] toBytes() {
@@ -311,9 +332,5 @@ public class FAT16X {
             return entry;
         }
 
-        private boolean checkAscII(String name) {
-            String regex = "[A-Za-z0-1#$%&'()\\-@]" + "{" + name.length() + "}+";
-            return name.matches(regex);
-        }
     }
 }

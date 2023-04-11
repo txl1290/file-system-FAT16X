@@ -1,15 +1,19 @@
-package command;
+package app.command;
 
-import command.base.Base;
-import dirven.DiskDriven;
+import app.command.base.Base;
+import fs.io.File;
 import picocli.CommandLine;
 
 @CommandLine.Command(name = "format", mixinStandardHelpOptions = true, description = "format the file system")
 public class Format extends Base {
 
+    public Format(String curDir) {
+        super(curDir);
+    }
+
     @Override
     public void run() {
-        DiskDriven.format();
-        System.out.println("file system format success");
+        File.fs.format();
+        out = "file system format success";
     }
 }

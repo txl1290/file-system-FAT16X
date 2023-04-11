@@ -1,6 +1,7 @@
 package utils;
 
-import protocol.FAT16X;
+import fs.fat.FAT16X;
+import fs.io.File;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +53,34 @@ public class Transfer {
         return entries;
     }
 
+    public static byte[] entriesToBytes(List<FAT16X.DirectoryEntry> entries) {
+        byte[] data = new byte[entries.size() * FAT16X.ENTRY_SIZE];
+        for (int i = 0; i < entries.size(); i++) {
+            System.arraycopy(entries.get(i).toBytes(), 0, data, i * FAT16X.ENTRY_SIZE, FAT16X.ENTRY_SIZE);
+        }
+        return data;
+    }
+
     public static int short2Int(short a) {
         return a & 0xffff;
+    }
+
+    public static List<File> convertEntriesToFiles(List<FAT16X.DirectoryEntry> entries) {
+        List<File> files = new ArrayList<>();
+        for (FAT16X.DirectoryEntry entry : entries) {
+            files.add(convertEntryToFile(entry));
+        }
+        return files;
+    }
+
+    public static File convertEntryToFile(FAT16X.DirectoryEntry entry) {
+        return File.builder()
+                .name(entry.getFullName().trim())
+                .isDirectory(entry.isDir())
+                .isFile(entry.isFile())
+                .isReadOnly(entry.isReadOnly())
+                .fileSize(entry.getFileSize())
+                .lastWriteTimeStamp(entry.getLastWriteTimeStamp())
+                .build();
     }
 }
