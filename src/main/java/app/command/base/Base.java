@@ -31,7 +31,7 @@ public class Base implements Runnable {
                 redirect();
             }
         } catch (Exception e) {
-            err = this.getClass().getSimpleName().toLowerCase() + ": " + e.getMessage();
+            err = this.getClass().getSimpleName().toLowerCase() + ": " + e.getMessage() + "\n";
         }
     }
 

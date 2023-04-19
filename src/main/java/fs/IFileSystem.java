@@ -19,4 +19,6 @@ public interface IFileSystem {
     public List<FAT16X.DirectoryEntry> listFiles(Fd fd);
 
     public void appendFile(String path, boolean isDir);
+
+    public void removeFile(String path);
 }

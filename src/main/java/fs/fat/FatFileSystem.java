@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
@@ -279,10 +280,39 @@ public class FatFileSystem implements IFileSystem {
         flushFatTable();
     }
 
+    @Override
+    public void removeFile(String path) {
+        Fd fd = open(path);
+        if(fd.getEntry().isDir() && listFiles(fd).size() > 0) {
+            throw new IllegalStateException("dir is not empty, can not remove");
+        } else {
+            collectClusterChain(fd.getEntry().getStartingCluster());
+            removeFile(fd.getParentFd(), fd.getEntry());
+            flushFatTable();
+        }
+    }
+
+    private void removeFile(Fd fd, FAT16X.DirectoryEntry entry) {
+        List<FAT16X.DirectoryEntry> files = listFiles(fd);
+        Iterator it = files.iterator();
+        while (it.hasNext()) {
+            FAT16X.DirectoryEntry file = (FAT16X.DirectoryEntry) it.next();
+            if(file.getFullName().equals(entry.getFullName())) {
+                it.remove();
+                break;
+            }
+        }
+        byte[] buf = Transfer.entriesToBytes(files);
+        resetFd(fd);
+        // 覆盖原来的目录条目，删除导致的多余部分用0填充
+        write(fd, buf, buf.length);
+        write(fd, new byte[FAT16X.ENTRY_SIZE], FAT16X.ENTRY_SIZE);
+    }
+
     private void freeCluster(int clusterIdx) {
         fatfs.getFatTable()[clusterIdx] = FAT16X.FAT16X_FREE_CLUSTER;
         // 清空簇
-        byte[] empty = new byte[fatfs.sectorSize() * fatfs.getBootSector().getSectorsPerCluster()];
+        byte[] empty = new byte[fatfs.sectorSize()];
         int sectorIdx = clusterIdx * fatfs.getBootSector().getSectorsPerCluster();
         for (int i = 0; i < fatfs.getBootSector().getSectorsPerCluster(); i++) {
             disk.writeSector(sectorIdx + i, empty);

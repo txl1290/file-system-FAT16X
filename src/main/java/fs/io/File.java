@@ -94,4 +94,8 @@ public class File {
     public boolean isReadOnly() {
         return isReadOnly;
     }
+
+    public void remove() {
+        fs.removeFile(path);
+    }
 }

@@ -62,7 +62,7 @@ public class Ls extends Base {
                 fileDetail = builder.toString();
             }
 
-            content.append(fileDetail).append("\n");
+            content.append(fileDetail).append("\r\n");
         }
         return content.toString();
     }
