@@ -17,9 +17,6 @@ public class Touch extends Base {
     @Override
     protected void executeCommand() {
         File file = new File(getAbsolutePath(path));
-        if(file.exist()) {
-            throw new IllegalArgumentException("touch: cannot create file '" + path + "': File already exists");
-        }
 
         file.create();
     }

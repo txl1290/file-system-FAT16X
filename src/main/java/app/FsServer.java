@@ -23,6 +23,7 @@ public class FsServer implements IServer {
         sshServer.setKeyPairProvider(myHostKeyProvider());
         sshServer.setPasswordAuthenticator((username, password, session) -> true);
         sshServer.setIoServiceFactoryFactory(BuiltinIoServiceFactoryFactories.NIO2.create());
+        sshServer.getProperties().put(SshServer.IDLE_TIMEOUT, 1000 * 60 * 60 * 24);
         sshServer.start();
         sshServer.setShellFactory(new MyShellFactory());
     }

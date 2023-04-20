@@ -83,14 +83,17 @@ public class Base implements Runnable {
         }
 
         File file = new File(getAbsolutePath(path));
-        if(!file.exist()) {
-            file.create();
+
+        synchronized(File.fs) {
+            if(!file.exist()) {
+                file.create();
+            }
+
+            FileOutputStream outputStream = new FileOutputStream(file, append);
+
+            outputStream.write(out);
+            outputStream.close();
         }
-
-        FileOutputStream outputStream = new FileOutputStream(file, append);
-
-        outputStream.write(out);
-        outputStream.close();
 
         out = "";
     }

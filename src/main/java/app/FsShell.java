@@ -34,14 +34,14 @@ public class FsShell implements Command, Runnable {
 
     private String username = "root";
 
-    private Thread thread;
+    Thread sshThread;
 
     @Override
     public void run() {
         try {
             DefaultHistory history = new DefaultHistory();
 
-            if(thread == null) {
+            if(sshThread == null) {
                 Scanner scanner = new Scanner(in);
                 StreamUtil.writeOutputStream(out, "\r" + username + "@" + FS_NAME + ":" + currentDir.getPath() + "$ ");
                 while (scanner.hasNextLine()) {
@@ -54,6 +54,7 @@ public class FsShell implements Command, Runnable {
                         .terminal(TerminalBuilder.builder().streams(in, out).encoding("UTF-8").build())
                         .history(history)
                         .completer(new HistoryCompleter(history))
+                        .option(LineReader.Option.DISABLE_EVENT_EXPANSION, true)
                         .build();
 
                 while (true) {
@@ -153,13 +154,13 @@ public class FsShell implements Command, Runnable {
     @Override
     public void start(ChannelSession channelSession, Environment environment) {
         username = channelSession.getSession().getUsername();
-        thread = new Thread(this);
-        thread.start();
+        sshThread = new Thread(this);
+        sshThread.start();
     }
 
     @Override
     public void destroy(ChannelSession channelSession) {
-        thread.interrupt();
+        sshThread.interrupt();
         channelSession.close(false);
     }
 }

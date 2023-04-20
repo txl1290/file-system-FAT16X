@@ -60,13 +60,16 @@ public class File {
         if(!isDirectory) {
             throw new RuntimeException("File class is not a directory");
         }
+        
         fs.appendFile(path, true);
+
     }
 
     public void create() {
         if(!isFile) {
             throw new RuntimeException("File class is not a file");
         }
+
         fs.appendFile(path, false);
     }
 

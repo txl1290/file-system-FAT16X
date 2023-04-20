@@ -32,10 +32,7 @@ public class FileInputStream {
     }
 
     public String read() {
-        int size = fd.getEntry().getFileSize();
-        byte[] buf = new byte[size];
-        File.fs.read(fd, buf, size);
-        return new String(buf);
+        return File.fs.readAll(fd);
     }
 
     public List<File> listFiles() {

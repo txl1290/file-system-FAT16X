@@ -47,7 +47,7 @@ public class FileOutputStream {
         }
     }
 
-    public void write(String s, int off, int len) {
+    private void write(String s, int off, int len) {
         byte[] b = s.getBytes(StandardCharsets.UTF_8);
 
         int startCluster = fd.getEntry().getStartingCluster();
