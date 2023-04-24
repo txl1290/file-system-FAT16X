@@ -40,8 +40,6 @@ public class FatFileSystem implements IFileSystem {
     }
 
     public FatFileSystem() {
-        // 初始化文件系统
-        init();
         // 根目录
         rootFd = Fd.builder()
                 .entry(FAT16X.DirectoryEntry.builder()
@@ -54,6 +52,8 @@ public class FatFileSystem implements IFileSystem {
                 .currentSector(fatfs.rootDirStartSectorIdx())
                 .offset(0)
                 .build();
+        // 初始化文件系统
+        init();
     }
 
     private void init() {
@@ -64,7 +64,10 @@ public class FatFileSystem implements IFileSystem {
             fatfs.setBootSector(bootSector);
         }
 
+        fdMap.put("/", rootFd);
+
         initFatTable();
+        flushFatTable();
     }
 
     private void initFatTable() {
@@ -92,61 +95,64 @@ public class FatFileSystem implements IFileSystem {
      * Open a file
      */
     @Override
-    public Fd open(String path) {
+    public synchronized Fd open(String path) {
         Fd fd;
-        synchronized(rootFd) {
-            if(fdMap.containsKey(path) && fdMap.get(path).valid()) {
-                fd = fdMap.get(path);
-            } else {
-                fd = findFd(path);
-                if(fd == null) {
-                    throw new IllegalStateException("File not found: " + path);
-                }
-                fdMap.put(path, fd);
+        if(fdMap.containsKey(path) && fdMap.get(path).valid()) {
+            fd = fdMap.get(path);
+        } else {
+            fd = findFd(path);
+            if(fd == null) {
+                throw new IllegalStateException("File not found: " + path);
             }
-            fd.addRef();
         }
         return fd;
     }
 
-    public Fd findFd(String path) {
-        String[] pathArr = path.split("/");
-        synchronized(rootFd) {
-            resetFd(rootFd);
-            Fd fd = rootFd;
-            Fd parentFd;
-            for (int i = 0; i < pathArr.length; i++) {
-                String name = pathArr[i];
-                if("".equals(name)) {
-                    continue;
-                }
-                List<FAT16X.DirectoryEntry> entries = listFiles(fd);
-                Optional<FAT16X.DirectoryEntry> entry = entries.stream().filter(e -> e.getFullName().equals(name)).findFirst();
-                if(entry.isPresent()) {
-                    FAT16X.DirectoryEntry e = entry.get();
-                    parentFd = fd;
-                    resetFd(parentFd);
-                    int startCluster = Transfer.short2Int(e.getStartingCluster());
-                    fd = Fd.builder()
-                            .entry(e)
-                            .currentCluster(startCluster)
-                            .currentSector(startCluster * fatfs.getBootSector().getSectorsPerCluster())
-                            .offset(0)
-                            .parentFd(parentFd)
-                            .build();
-                } else {
-                    return null;
-                }
-            }
-            return fd;
+    public synchronized Fd findFd(String path) {
+        if("/".equals(path)) {
+            return rootFd;
         }
+
+        String[] pathArr = path.split("/");
+        Fd fd = rootFd;
+        Fd parentFd;
+        String searchPath = "";
+        for (String name : pathArr) {
+            if("".equals(name)) {
+                continue;
+            }
+            searchPath += "/" + name;
+            if(fdMap.containsKey(searchPath) && fdMap.get(searchPath).valid()) {
+                fd = fdMap.get(searchPath);
+                continue;
+            }
+            List<FAT16X.DirectoryEntry> entries = listFiles(fd);
+            Optional<FAT16X.DirectoryEntry> entry = entries.stream().filter(e -> e.getFullName().equals(name)).findFirst();
+            if(entry.isPresent()) {
+                FAT16X.DirectoryEntry e = entry.get();
+                parentFd = fd;
+                int startCluster = Transfer.short2Int(e.getStartingCluster());
+                fd = Fd.builder()
+                        .entry(e)
+                        .currentCluster(startCluster)
+                        .currentSector(startCluster * fatfs.getBootSector().getSectorsPerCluster())
+                        .offset(0)
+                        .parentFd(parentFd)
+                        .build();
+                fdMap.put(searchPath, fd);
+            } else {
+                return null;
+            }
+        }
+        return fd;
     }
 
     private void appendFile(Fd fd, FAT16X.DirectoryEntry file) {
         List<FAT16X.DirectoryEntry> files = listFiles(fd);
-        if(files.stream().filter(e -> e.getFullName().equals(file.getFullName())).count() > 0) {
+        if(files.stream().anyMatch(e -> e.getFullName().equals(file.getFullName()))) {
             throw new IllegalStateException("File already exists: " + file.getFullName());
         }
+        file.setStartingCluster((short) allocEmptyCluster());
         files.add(file);
         byte[] data = Transfer.entriesToBytes(files);
         resetFd(fd);
@@ -156,7 +162,7 @@ public class FatFileSystem implements IFileSystem {
     @Override
     public void close(Fd fd) {
         synchronized(fd) {
-            if(fd != null && fd != rootFd) {
+            if(fd != rootFd) {
                 flushFd(fd);
                 collectFileCluster(Transfer.short2Int(fd.getEntry().getStartingCluster()), fd.getEntry().getFileSize());
                 fd.close();
@@ -211,6 +217,43 @@ public class FatFileSystem implements IFileSystem {
                 }
                 fd.setOffset(offset);
             }
+        }
+    }
+
+    /**
+     * 基于文件偏移量写入数据
+     * 主要处理的是fd的寻址，真正的写入操作交给write(Fd fd, byte[] buf, int len)
+     */
+    public void write(Fd fd, byte[] buf, int off, int len) {
+        if(fd == null || !fd.valid()) {
+            throw new IllegalArgumentException("invalid fd");
+        }
+
+        synchronized(fd) {
+            int startCluster = fd.getEntry().getStartingCluster();
+
+            // 计算偏移的cluster、sector和offset
+            int sectorOffset = off / sectorSize();
+            int offset = off % sectorSize();
+            int clusterOffset = sectorOffset / sectorsPerCluster();
+            int nextCluster = startCluster;
+            while (clusterOffset > 0) {
+                // 需要找到下一个cluster
+                nextCluster = getNextCluster(nextCluster);
+                if(nextCluster == -1) {
+                    // 偏移量为文件尾
+                    sectorOffset = sectorsPerCluster() - 1;
+                    offset = sectorSize();
+                    break;
+                } else {
+                    fd.setCurrentCluster(nextCluster);
+                    clusterOffset--;
+                    sectorOffset -= sectorsPerCluster();
+                }
+            }
+            fd.setCurrentSector(fd.getCurrentCluster() * sectorsPerCluster() + sectorOffset);
+            fd.setOffset(offset);
+            write(fd, buf, len);
         }
     }
 
@@ -306,7 +349,6 @@ public class FatFileSystem implements IFileSystem {
             throw new IllegalArgumentException("invalid path");
         }
         FAT16X.DirectoryEntry file = FAT16X.DirectoryEntry.builder()
-                .startingCluster((short) allocEmptyCluster())
                 .creationTimeStamp(DateUtil.getCurrentTime())
                 .lastAccessDateStamp(DateUtil.getCurrentDateTimeStamp())
                 .lastWriteTimeStamp(DateUtil.getCurrentTime())
@@ -330,8 +372,8 @@ public class FatFileSystem implements IFileSystem {
 
     @Override
     public void removeFile(String path) {
-        synchronized(rootFd) {
-            Fd fd = open(path);
+        Fd fd = open(path);
+        synchronized(fd) {
             if(fd.getEntry().isDir() && listFiles(fd).size() > 0) {
                 throw new IllegalStateException("dir is not empty, can not remove");
             } else {
@@ -344,20 +386,22 @@ public class FatFileSystem implements IFileSystem {
     }
 
     private void removeFile(Fd fd, FAT16X.DirectoryEntry entry) {
-        List<FAT16X.DirectoryEntry> files = listFiles(fd);
-        Iterator it = files.iterator();
-        while (it.hasNext()) {
-            FAT16X.DirectoryEntry file = (FAT16X.DirectoryEntry) it.next();
-            if(file.getFullName().equals(entry.getFullName())) {
-                it.remove();
-                break;
+        synchronized(fd) {
+            List<FAT16X.DirectoryEntry> files = listFiles(fd);
+            Iterator<FAT16X.DirectoryEntry> it = files.iterator();
+            while (it.hasNext()) {
+                FAT16X.DirectoryEntry file = it.next();
+                if(file.getFullName().equals(entry.getFullName())) {
+                    it.remove();
+                    break;
+                }
             }
+            byte[] buf = Transfer.entriesToBytes(files);
+            resetFd(fd);
+            // 覆盖原来的目录条目，删除导致的多余部分用0填充
+            write(fd, buf, buf.length);
+            write(fd, new byte[FAT16X.ENTRY_SIZE], FAT16X.ENTRY_SIZE);
         }
-        byte[] buf = Transfer.entriesToBytes(files);
-        resetFd(fd);
-        // 覆盖原来的目录条目，删除导致的多余部分用0填充
-        write(fd, buf, buf.length);
-        write(fd, new byte[FAT16X.ENTRY_SIZE], FAT16X.ENTRY_SIZE);
     }
 
     private void freeCluster(int clusterIdx) {
@@ -370,10 +414,12 @@ public class FatFileSystem implements IFileSystem {
         }
     }
 
-    public void format() {
+    public synchronized void format() {
         try {
             // 清空磁盘
             disk.getFw().setLength(0L);
+
+            fdMap.clear();
 
             // 重新写入引导扇区
             disk.getFw().setLength(2L * 1024 * 1024 * 1024);
@@ -410,7 +456,7 @@ public class FatFileSystem implements IFileSystem {
         return clusterIdx;
     }
 
-    public void resetFd(Fd fd) {
+    private void resetFd(Fd fd) {
         if(fd == rootFd) {
             fd.setCurrentCluster(fatfs.rootDirStartClusterIdx());
             fd.setCurrentSector(fatfs.rootDirStartSectorIdx());
@@ -428,19 +474,21 @@ public class FatFileSystem implements IFileSystem {
     private void flushFd(Fd fd) {
         FAT16X.DirectoryEntry entry = fd.getEntry();
         Fd parentFd = fd.getParentFd();
-        List<FAT16X.DirectoryEntry> entries = listFiles(parentFd);
-        // 从entries中找到entry，替换
-        for (int i = 0; i < entries.size(); i++) {
-            FAT16X.DirectoryEntry e = entries.get(i);
-            if(e.getFullName().equals(entry.getFullName())) {
-                entries.set(i, entry);
-                break;
+        synchronized(parentFd) {
+            List<FAT16X.DirectoryEntry> entries = listFiles(parentFd);
+            // 从entries中找到entry，替换
+            for (int i = 0; i < entries.size(); i++) {
+                FAT16X.DirectoryEntry e = entries.get(i);
+                if(e.getFullName().equals(entry.getFullName())) {
+                    entries.set(i, entry);
+                    break;
+                }
             }
-        }
 
-        byte[] buf = Transfer.entriesToBytes(entries);
-        resetFd(parentFd);
-        write(parentFd, buf, buf.length);
+            byte[] buf = Transfer.entriesToBytes(entries);
+            resetFd(parentFd);
+            write(parentFd, buf, buf.length);
+        }
     }
 
     private static void flushBootSector() {

@@ -49,12 +49,7 @@ public class FsServer implements IServer {
     public static class MyShellFactory implements ShellFactory {
         @Override
         public Command createShell(ChannelSession channel) {
-            FsShell fsShell = new FsShell();
-
-            // 退出操作是关闭channel
-            fsShell.setExitCallback((status, msg) -> channel.close(false));
-
-            return fsShell;
+            return new FsShell();
         }
     }
 

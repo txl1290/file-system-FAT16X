@@ -30,7 +30,6 @@ public class Ls extends Base {
         FileInputStream in = new FileInputStream(dir);
         String data = showFiles(in.listFiles());
         in.close();
-
         out = data;
     }
 

@@ -14,7 +14,7 @@ public class Disk implements IDisk {
     }
 
     @Override
-    public byte[] readSector(int sectorIdx) {
+    public synchronized byte[] readSector(int sectorIdx) {
         byte[] sectorData = new byte[sectorSize()];
         try {
             if(sectorIdx >= sectorCount()) {
@@ -29,7 +29,7 @@ public class Disk implements IDisk {
     }
 
     @Override
-    public void writeSector(int sectorIdx, byte[] sectorData) {
+    public synchronized void writeSector(int sectorIdx, byte[] sectorData) {
         try {
             if(sectorIdx >= sectorCount()) {
                 throw new IllegalArgumentException("Sector index out of range: " + sectorIdx);

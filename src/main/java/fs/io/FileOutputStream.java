@@ -39,40 +39,11 @@ public class FileOutputStream {
     public void write(String s) {
         if(append) {
             int offset = fd.getEntry().getFileSize();
-            write(s, offset, s.length());
+            File.fs.write(fd, s.getBytes(StandardCharsets.UTF_8), offset, s.length());
         } else {
             // 清空文件
             fd.getEntry().setFileSize(0);
-            write(s, 0, s.length());
+            File.fs.write(fd, s.getBytes(StandardCharsets.UTF_8), 0, s.length());
         }
-    }
-
-    private void write(String s, int off, int len) {
-        byte[] b = s.getBytes(StandardCharsets.UTF_8);
-
-        int startCluster = fd.getEntry().getStartingCluster();
-
-        // 计算偏移的cluster、sector和offset
-        int sectorOffset = off / File.fs.sectorSize();
-        int offset = off % File.fs.sectorSize();
-        int clusterOffset = sectorOffset / File.fs.sectorsPerCluster();
-        int nextCluster = startCluster;
-        while (clusterOffset > 0) {
-            // 需要找到下一个cluster
-            nextCluster = File.fs.getNextCluster(nextCluster);
-            if(nextCluster == -1) {
-                // 偏移量为文件尾
-                sectorOffset = File.fs.sectorsPerCluster() - 1;
-                offset = File.fs.sectorSize();
-                break;
-            } else {
-                fd.setCurrentCluster(nextCluster);
-                clusterOffset--;
-                sectorOffset -= File.fs.sectorsPerCluster();
-            }
-        }
-        fd.setCurrentSector(fd.getCurrentCluster() * File.fs.sectorsPerCluster() + sectorOffset);
-        fd.setOffset(offset);
-        File.fs.write(fd, b, len);
     }
 }

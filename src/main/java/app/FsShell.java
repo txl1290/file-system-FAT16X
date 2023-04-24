@@ -59,8 +59,12 @@ public class FsShell implements Command, Runnable {
 
                 while (true) {
                     String prefix = "\r" + username + "@" + FS_NAME + ":" + currentDir.getPath() + "$ ";
-                    String input = lineReader.readLine(prefix);
-                    execCommand(input);
+                    try {
+                        String input = lineReader.readLine(prefix);
+                        execCommand(input);
+                    } catch (Exception e) {
+                        break;
+                    }
                 }
             }
         } catch (IOException e) {
@@ -69,6 +73,7 @@ public class FsShell implements Command, Runnable {
     }
 
     private void execCommand(String input) throws IOException {
+        input = input.trim();
         if(input.isEmpty()) {
             return;
         }
@@ -91,11 +96,20 @@ public class FsShell implements Command, Runnable {
                 Class<?> clazz = Class.forName("app.command." + command);
                 if(clazz.isAnnotationPresent(CommandLine.Command.class)) {
                     CommandLine commandLine = new CommandLine(clazz.getDeclaredConstructor(String.class).newInstance(currentDir.getPath()));
+
+                    // 命令使用错误提示
+                    commandLine.setParameterExceptionHandler((ex, parameters) -> {
+                        StreamUtil.writeOutputStream(err, ex.getMessage() + "\n");
+                        StreamUtil.writeOutputStream(out, commandLine.getUsageMessage());
+                        return CommandLine.ExitCode.SOFTWARE;
+                    });
                     commandLine.execute(args);
 
                     // 获取命令执行结果
                     String commandOutput = ((Base) commandLine.getCommand()).getOut();
-                    commandOutput = commandOutput.isEmpty() ? "" : commandOutput + "\n";
+                    if(!"clear".equalsIgnoreCase(command)) {
+                        commandOutput = commandOutput.isEmpty() ? "" : commandOutput + "\n";
+                    }
                     StreamUtil.writeOutputStream(out, commandOutput);
                     StreamUtil.writeOutputStream(err, ((Base) commandLine.getCommand()).getErr());
                 }
