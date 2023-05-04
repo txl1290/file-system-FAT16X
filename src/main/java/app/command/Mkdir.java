@@ -17,9 +17,6 @@ public class Mkdir extends Base {
     @Override
     protected void executeCommand() {
         File dir = new File(getAbsolutePath(dirPath), true, false);
-        if(dir.exist()) {
-            throw new IllegalArgumentException("mkdir: cannot create directory '" + dirPath + "': File already exists");
-        }
 
         dir.mkdir();
     }

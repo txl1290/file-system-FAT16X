@@ -31,7 +31,8 @@ public class Base implements Runnable {
                 redirect();
             }
         } catch (Exception e) {
-            err = this.getClass().getSimpleName().toLowerCase() + ": " + e.getMessage();
+            err = this.getClass().getSimpleName().toLowerCase() + ": " + e.getMessage() + "\n";
+            out = "";
         }
     }
 
@@ -83,14 +84,18 @@ public class Base implements Runnable {
         }
 
         File file = new File(getAbsolutePath(path));
-        if(!file.exist()) {
-            file.create();
+
+        // 这里加了一个同步锁防止报重复创建文件的错误
+        synchronized(File.fs) {
+            if(!file.exist()) {
+                file.create();
+            }
+
+            FileOutputStream outputStream = new FileOutputStream(file, append);
+
+            outputStream.write(out);
+            outputStream.close();
         }
-
-        FileOutputStream outputStream = new FileOutputStream(file, append);
-
-        outputStream.write(out);
-        outputStream.close();
 
         out = "";
     }

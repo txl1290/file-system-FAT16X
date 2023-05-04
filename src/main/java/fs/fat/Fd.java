@@ -9,6 +9,7 @@ import lombok.experimental.SuperBuilder;
 public class Fd {
 
     private FAT16X.DirectoryEntry entry;
+
     private int currentCluster;
     private int currentSector;
     private int offset;
@@ -19,7 +20,7 @@ public class Fd {
     private boolean closed = false;
 
     public void close() {
-        closed = true;
+
     }
 
     public boolean valid() {

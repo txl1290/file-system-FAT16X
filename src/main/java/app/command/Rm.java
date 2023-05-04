@@ -4,13 +4,13 @@ import app.command.base.Base;
 import fs.io.File;
 import picocli.CommandLine;
 
-@CommandLine.Command(name = "touch", mixinStandardHelpOptions = true, description = "create a file")
-public class Touch extends Base {
+@CommandLine.Command(name = "rm", mixinStandardHelpOptions = true, description = "remove a file or directory")
+public class Rm extends Base {
 
     @CommandLine.Parameters(index = "0", description = "The file path")
     private String path;
 
-    public Touch(String curDir) {
+    public Rm(String curDir) {
         super(curDir);
     }
 
@@ -18,6 +18,7 @@ public class Touch extends Base {
     protected void executeCommand() {
         File file = new File(getAbsolutePath(path));
 
-        file.create();
+        file.remove();
     }
+
 }

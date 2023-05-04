@@ -45,7 +45,16 @@ public class File {
 
     public boolean exist() {
         Fd fd = fs.findFd(path);
-        return fd != null && isDirectory == fd.getEntry().isDir() && isFile == fd.getEntry().isFile();
+        if(fd != null) {
+            if(isDirectory != fd.getEntry().isDir()) {
+                throw new RuntimeException(path + " is not a directory");
+            } else if(isFile != fd.getEntry().isFile()) {
+                throw new RuntimeException(path + " is a directory");
+            }
+            return true;
+        } else {
+            return false;
+        }
     }
 
     public boolean isDirectory() {
@@ -60,13 +69,16 @@ public class File {
         if(!isDirectory) {
             throw new RuntimeException("File class is not a directory");
         }
+
         fs.appendFile(path, true);
+
     }
 
     public void create() {
         if(!isFile) {
             throw new RuntimeException("File class is not a file");
         }
+
         fs.appendFile(path, false);
     }
 
@@ -93,5 +105,9 @@ public class File {
 
     public boolean isReadOnly() {
         return isReadOnly;
+    }
+
+    public void remove() {
+        fs.removeFile(path);
     }
 }
