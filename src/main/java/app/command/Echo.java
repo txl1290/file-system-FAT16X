@@ -4,6 +4,9 @@ import app.command.base.Base;
 import org.apache.commons.text.StringEscapeUtils;
 import picocli.CommandLine;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+
 @CommandLine.Command(name = "echo", mixinStandardHelpOptions = true, description = "show the content in the terminal")
 public class Echo extends Base {
 
@@ -15,7 +18,7 @@ public class Echo extends Base {
     }
 
     @Override
-    protected void executeCommand() {
+    protected void executeCommand() throws IOException {
         String content = String.join(" ", contents);
         // 找到单引号或双引号包起来的内容，谁成对先出现就用谁
         int singleStart = content.indexOf('\'');
@@ -70,8 +73,8 @@ public class Echo extends Base {
             String content3 = content.substring(end + 1);
             content = content1 + unescape(content2) + content3;
         }
-
-        out = content;
+        
+        out.write(content.getBytes(StandardCharsets.UTF_8));
     }
 
     private String unescape(String content) {

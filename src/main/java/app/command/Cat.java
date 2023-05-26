@@ -5,6 +5,8 @@ import fs.io.File;
 import fs.io.FileInputStream;
 import picocli.CommandLine;
 
+import java.io.IOException;
+
 @CommandLine.Command(name = "cat", mixinStandardHelpOptions = true, description = "show the file's content")
 public class Cat extends Base {
 
@@ -16,14 +18,15 @@ public class Cat extends Base {
     }
 
     @Override
-    protected void executeCommand() {
+    protected void executeCommand() throws IOException {
         // 处理无空格的重定向
         path = handleRedirect(path);
 
         File file = new File(getAbsolutePath(path));
         FileInputStream in = new FileInputStream(file);
-        String data = in.read();
+        byte[] data = new byte[file.getFileSize()];
+        in.read(data);
         in.close();
-        out = data;
+        out.write(data);
     }
 }

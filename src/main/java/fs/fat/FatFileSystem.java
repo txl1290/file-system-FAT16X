@@ -230,31 +230,35 @@ public class FatFileSystem implements IFileSystem {
         }
 
         synchronized(fd) {
-            int startCluster = fd.getEntry().getStartingCluster();
-
-            // 计算偏移的cluster、sector和offset
-            int sectorOffset = off / sectorSize();
-            int offset = off % sectorSize();
-            int clusterOffset = sectorOffset / sectorsPerCluster();
-            int nextCluster = startCluster;
-            while (clusterOffset > 0) {
-                // 需要找到下一个cluster
-                nextCluster = getNextCluster(nextCluster);
-                if(nextCluster == -1) {
-                    // 偏移量为文件尾
-                    sectorOffset = sectorsPerCluster() - 1;
-                    offset = sectorSize();
-                    break;
-                } else {
-                    fd.setCurrentCluster(nextCluster);
-                    clusterOffset--;
-                    sectorOffset -= sectorsPerCluster();
-                }
-            }
-            fd.setCurrentSector(fd.getCurrentCluster() * sectorsPerCluster() + sectorOffset);
-            fd.setOffset(offset);
+            setFdOffset(fd, off);
             write(fd, buf, len);
         }
+    }
+
+    public void setFdOffset(Fd fd, int off) {
+        int startCluster = fd.getEntry().getStartingCluster();
+
+        // 计算偏移的cluster、sector和offset
+        int sectorOffset = off / sectorSize();
+        int offset = off % sectorSize();
+        int clusterOffset = sectorOffset / sectorsPerCluster();
+        int nextCluster = startCluster;
+        while (clusterOffset > 0) {
+            // 需要找到下一个cluster
+            nextCluster = getNextCluster(nextCluster);
+            if(nextCluster == -1) {
+                // 偏移量为文件尾
+                sectorOffset = sectorsPerCluster() - 1;
+                offset = sectorSize();
+                break;
+            } else {
+                fd.setCurrentCluster(nextCluster);
+                clusterOffset--;
+                sectorOffset -= sectorsPerCluster();
+            }
+        }
+        fd.setCurrentSector(fd.getCurrentCluster() * sectorsPerCluster() + sectorOffset);
+        fd.setOffset(offset);
     }
 
     @Override

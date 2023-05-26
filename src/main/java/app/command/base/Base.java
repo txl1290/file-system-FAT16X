@@ -5,6 +5,11 @@ import fs.io.FileOutputStream;
 import picocli.CommandLine;
 import utils.InputParser;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+
 public class Base implements Runnable {
 
     @CommandLine.Option(names = ">", description = "The redirect path")
@@ -13,9 +18,11 @@ public class Base implements Runnable {
     @CommandLine.Option(names = ">>", description = "The redirect path append")
     protected String redirectPathAppend;
 
-    protected String out = "";
+    protected InputStream in;
 
-    protected String err = "";
+    protected ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+    protected ByteArrayOutputStream err = new ByteArrayOutputStream();
 
     private String curDir;
 
@@ -31,20 +38,25 @@ public class Base implements Runnable {
                 redirect();
             }
         } catch (Exception e) {
-            err = this.getClass().getSimpleName().toLowerCase() + ": " + e.getMessage() + "\n";
-            out = "";
+            String errMsg = this.getClass().getSimpleName().toLowerCase() + ": " + e.getMessage();
+            try {
+                err.write(errMsg.getBytes(StandardCharsets.UTF_8));
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+            out.reset();
         }
     }
 
-    public String getOut() {
+    public ByteArrayOutputStream getOut() {
         return out;
     }
 
-    public String getErr() {
+    public ByteArrayOutputStream getErr() {
         return err;
     }
 
-    protected void executeCommand() {
+    protected void executeCommand() throws IOException {
     }
 
     protected String getAbsolutePath(String path) {
@@ -73,7 +85,7 @@ public class Base implements Runnable {
         return path;
     }
 
-    private void redirect() {
+    private void redirect() throws IOException {
         String path;
         boolean append = false;
         if(redirectPath != null) {
@@ -93,10 +105,10 @@ public class Base implements Runnable {
 
             FileOutputStream outputStream = new FileOutputStream(file, append);
 
-            outputStream.write(out);
+            out.writeTo(outputStream);
             outputStream.close();
         }
 
-        out = "";
+        out.reset();
     }
 }

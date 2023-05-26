@@ -2,9 +2,10 @@ package fs.io;
 
 import fs.fat.Fd;
 
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
-public class FileOutputStream {
+public class FileOutputStream extends OutputStream {
 
     private final File file;
 
@@ -32,18 +33,37 @@ public class FileOutputStream {
         }
     }
 
+    @Override
+    public void write(int b) {
+        byte[] bytes = new byte[1];
+        bytes[0] = (byte) b;
+        writeBytes(bytes, 0, 1, append);
+    }
+
+    private void writeBytes(byte[] b, int off, int len, boolean append) {
+        synchronized(fd) {
+            if(append) {
+                int offset = fd.getEntry().getFileSize();
+                File.fs.write(fd, b, offset, len);
+            } else {
+                // 重置文件大小为偏移量
+                fd.getEntry().setFileSize(off);
+                File.fs.write(fd, b, off, len);
+            }
+        }
+    }
+
+    @Override
     public void close() {
         File.fs.close(fd);
     }
 
+    @Override
+    public void write(byte[] b, int off, int len) {
+        writeBytes(b, off, len, append);
+    }
+
     public void write(String s) {
-        if(append) {
-            int offset = fd.getEntry().getFileSize();
-            File.fs.write(fd, s.getBytes(StandardCharsets.UTF_8), offset, s.length());
-        } else {
-            // 清空文件
-            fd.getEntry().setFileSize(0);
-            File.fs.write(fd, s.getBytes(StandardCharsets.UTF_8), 0, s.length());
-        }
+        write(s.getBytes(StandardCharsets.UTF_8), 0, s.length());
     }
 }

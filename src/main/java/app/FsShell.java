@@ -15,6 +15,7 @@ import picocli.CommandLine;
 import utils.InputParser;
 import utils.StreamUtil;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -106,12 +107,18 @@ public class FsShell implements Command, Runnable {
                     commandLine.execute(args);
 
                     // 获取命令执行结果
-                    String commandOutput = ((Base) commandLine.getCommand()).getOut();
-                    if(!"clear".equalsIgnoreCase(command)) {
-                        commandOutput = commandOutput.isEmpty() ? "" : commandOutput + "\n";
+                    ByteArrayOutputStream commandOutput = ((Base) commandLine.getCommand()).getOut();
+                    ByteArrayOutputStream commandErr = ((Base) commandLine.getCommand()).getErr();
+                    commandOutput.writeTo(out);
+                    commandErr.writeTo(err);
+                    if(commandOutput.size() > 0) {
+                        out.write("\n".getBytes());
+                        out.flush();
                     }
-                    StreamUtil.writeOutputStream(out, commandOutput);
-                    StreamUtil.writeOutputStream(err, ((Base) commandLine.getCommand()).getErr());
+                    if(commandErr.size() > 0) {
+                        err.write("\n".getBytes());
+                        err.flush();
+                    }
                 }
             }
         } catch (ClassNotFoundException e) {
