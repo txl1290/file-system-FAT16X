@@ -53,19 +53,6 @@ public class Echo extends Base {
             end = doubleEnd;
         }
 
-        // 处理无空格的重定向
-        int redirectEnd = content.lastIndexOf('>');
-        if(redirectEnd > end) {
-            String redirect = content.substring(redirectEnd + 1).trim();
-            if(content.charAt(redirectEnd - 1) == '>') {
-                redirectPathAppend = redirect;
-                redirectEnd--;
-            } else {
-                redirectPath = redirect;
-            }
-            content = content.substring(0, redirectEnd).trim();
-        }
-
         // 如果有单引号或双引号包起来的内容，就把它们转义
         if(start != -1 && end != -1) {
             String content1 = content.substring(0, start);
@@ -73,7 +60,7 @@ public class Echo extends Base {
             String content3 = content.substring(end + 1);
             content = content1 + unescape(content2) + content3;
         }
-        
+
         out.write(content.getBytes(StandardCharsets.UTF_8));
     }
 

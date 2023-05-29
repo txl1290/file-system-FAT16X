@@ -10,6 +10,7 @@ import org.apache.sshd.server.command.Command;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.impl.history.DefaultHistory;
+import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 import picocli.CommandLine;
 import utils.InputParser;
@@ -51,12 +52,14 @@ public class FsShell implements Command, Runnable {
                     StreamUtil.writeOutputStream(out, "\r" + username + "@" + FS_NAME + ":" + currentDir.getPath() + "$ ");
                 }
             } else {
+                Terminal terminal = TerminalBuilder.builder().streams(in, out).encoding("UTF-8").build();
                 LineReader lineReader = LineReaderBuilder.builder()
-                        .terminal(TerminalBuilder.builder().streams(in, out).encoding("UTF-8").build())
+                        .terminal(terminal)
                         .history(history)
                         .completer(new HistoryCompleter(history))
                         .option(LineReader.Option.DISABLE_EVENT_EXPANSION, true)
                         .build();
+                this.out = terminal.output();
 
                 while (true) {
                     String prefix = "\r" + username + "@" + FS_NAME + ":" + currentDir.getPath() + "$ ";
@@ -74,14 +77,15 @@ public class FsShell implements Command, Runnable {
     }
 
     private void execCommand(String input) throws IOException {
-        input = input.trim();
-        if(input.isEmpty()) {
-            return;
-        }
-
         String command = InputParser.getCommand(input);
-        String[] args = InputParser.getArgs(input);
         try {
+            input = handleNoSpaceRedirect(input.trim());
+            if(input.isEmpty()) {
+                return;
+            }
+
+            String[] args = InputParser.getArgs(input);
+
             if("pwd".equalsIgnoreCase(command)) {
                 StreamUtil.writeOutputStream(out, currentDir.getPath() + "\n");
             } else if("cd".equalsIgnoreCase(command)) {
@@ -111,11 +115,11 @@ public class FsShell implements Command, Runnable {
                     ByteArrayOutputStream commandErr = ((Base) commandLine.getCommand()).getErr();
                     commandOutput.writeTo(out);
                     commandErr.writeTo(err);
-                    if(commandOutput.size() > 0) {
+                    if(!"clear".equalsIgnoreCase(command) && commandOutput.size() > 0) {
                         out.write("\n".getBytes());
                         out.flush();
                     }
-                    if(commandErr.size() > 0) {
+                    if(!"clear".equalsIgnoreCase(command) && commandErr.size() > 0) {
                         err.write("\n".getBytes());
                         err.flush();
                     }
@@ -150,6 +154,60 @@ public class FsShell implements Command, Runnable {
         } else {
             return InputParser.trimPath(currentDir.getPath() + "/" + path);
         }
+    }
+
+    /**
+     * 处理没有空格的重定向
+     */
+    private String handleNoSpaceRedirect(String input) {
+        StringBuilder modifiedCommand = new StringBuilder();
+        StringBuilder currentArg = new StringBuilder();
+        boolean insideQuotes = false;
+        boolean redirectDetected = false;
+        boolean appendRedirect = false;
+        boolean lastCharIsRedirect = false;
+
+        // 如果引号是单数，说明引号没有闭合，抛出异常
+        if(input.chars().filter(ch -> ch == '"').count() % 2 == 1 || input.chars().filter(ch -> ch == '\'').count() % 2 == 1) {
+            throw new IllegalArgumentException("zsh: quotation mark not closed");
+        }
+
+        for (int i = 0; i < input.length(); i++) {
+            char currentChar = input.charAt(i);
+
+            if(currentChar == '"') {
+                insideQuotes = !insideQuotes;
+            }
+
+            if(!insideQuotes && currentChar == '>') {
+                if(lastCharIsRedirect) {
+                    if(appendRedirect) {
+                        throw new IllegalArgumentException("zsh: parse error near `>`");
+                    } else {
+                        appendRedirect = true;
+                    }
+                    continue;
+                } else if(!redirectDetected) {
+                    redirectDetected = true;
+                    lastCharIsRedirect = true;
+                    continue;
+                }
+            } else {
+                lastCharIsRedirect = false;
+            }
+
+            if(redirectDetected) {
+                currentArg.append(currentChar);
+            } else {
+                modifiedCommand.append(currentChar);
+            }
+        }
+
+        if(redirectDetected) {
+            modifiedCommand.append(appendRedirect ? " >> " : " > ").append(currentArg.toString().trim());
+        }
+
+        return modifiedCommand.toString();
     }
 
     @Override

@@ -69,22 +69,6 @@ public class Base implements Runnable {
         }
     }
 
-    /**
-     * 处理无空格的重定向
-     */
-    protected String handleRedirect(String path) {
-        if(path.contains(">>")) {
-            String[] pathArr = path.split(">>");
-            redirectPathAppend = pathArr[1].trim();
-            path = pathArr[0].trim();
-        } else if(path.contains(">")) {
-            String[] pathArr = path.split(">");
-            redirectPath = pathArr[1].trim();
-            path = pathArr[0].trim();
-        }
-        return path;
-    }
-
     private void redirect() throws IOException {
         String path;
         boolean append = false;

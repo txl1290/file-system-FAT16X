@@ -19,9 +19,6 @@ public class Cat extends Base {
 
     @Override
     protected void executeCommand() throws IOException {
-        // 处理无空格的重定向
-        path = handleRedirect(path);
-
         File file = new File(getAbsolutePath(path));
         FileInputStream in = new FileInputStream(file);
         byte[] data = new byte[file.getFileSize()];

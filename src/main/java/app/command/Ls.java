@@ -25,7 +25,7 @@ public class Ls extends Base {
     @Override
     protected void executeCommand() throws IOException {
         // 处理无空格的重定向
-        path = handleRedirect(getAbsolutePath(path));
+        path = getAbsolutePath(path);
 
         File dir = new File(path, true, false);
 
