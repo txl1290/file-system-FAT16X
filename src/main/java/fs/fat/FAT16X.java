@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import utils.Transfer;
 
-import java.io.File;
 import java.util.Arrays;
 
 @Data
@@ -48,18 +47,7 @@ public class FAT16X {
 
     DirectoryEntry[] rootDirectory;
 
-    File dataRegion;
-
     public FAT16X() {
-        java.io.File file = new java.io.File("disk");
-        try {
-            if(!file.exists()) {
-                file.createNewFile();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        dataRegion = file;
     }
 
     public int fatStartSectorIdx() {

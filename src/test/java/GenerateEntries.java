@@ -8,6 +8,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import utils.Transfer;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -62,7 +63,7 @@ public class GenerateEntries {
      * 生成一个大文件，跨cluster
      */
     @Test
-    public void generateBigFile() {
+    public void generateBigFile() throws IOException {
         File testDir = new File(ROOT + TEST_DIR, true, false);
         if(!testDir.exist()) {
             testDir.mkdir();
@@ -96,7 +97,9 @@ public class GenerateEntries {
 
         // 跨cluster读取
         FileInputStream in = new FileInputStream(file);
-        String read = in.read();
+        byte[] buf = new byte[file.getFileSize()];
+        in.read(buf);
+        String read = new String(buf);
         in.close();
         Assert.assertEquals(write, read);
 

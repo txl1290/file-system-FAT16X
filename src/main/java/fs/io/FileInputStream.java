@@ -4,9 +4,10 @@ import fs.fat.FAT16X;
 import fs.fat.Fd;
 import utils.Transfer;
 
+import java.io.InputStream;
 import java.util.List;
 
-public class FileInputStream {
+public class FileInputStream extends InputStream {
 
     private final File file;
 
@@ -25,14 +26,32 @@ public class FileInputStream {
         } else if(file.isFile() && !fd.getEntry().isFile()) {
             throw new RuntimeException(path + " is a directory");
         }
+        file.setFileSize(fd.getEntry().getFileSize());
     }
 
+    @Override
+    public int read() {
+        byte[] b = new byte[1];
+        File.fs.read(fd, b, 1);
+        return b[0];
+    }
+    
+    private int readBytes(byte[] b, int off, int len) {
+        synchronized(fd) {
+            File.fs.setFdOffset(fd, off);
+            File.fs.read(fd, b, len);
+            return b.length;
+        }
+    }
+
+    @Override
+    public int read(byte[] b, int off, int len) {
+        return readBytes(b, off, len);
+    }
+
+    @Override
     public void close() {
         File.fs.close(fd);
-    }
-
-    public String read() {
-        return File.fs.readAll(fd);
     }
 
     public List<File> listFiles() {

@@ -8,7 +8,6 @@ import utils.InputParser;
 import utils.Transfer;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,27 +18,16 @@ import java.util.Optional;
 
 public class FatFileSystem implements IFileSystem {
 
-    static FAT16X fatfs;
+    FAT16X fatfs;
 
-    static Disk disk;
+    Disk disk;
 
-    static Fd rootFd;
+    Fd rootFd;
 
     Map<String, Fd> fdMap = new HashMap<>();
 
-    static {
-        fatfs = new FAT16X();
-        try {
-            RandomAccessFile fw = new RandomAccessFile(fatfs.getDataRegion(), "rwd");
-            fw.setLength(2L * 1024 * 1024 * 1024);
-            disk = new Disk(fw);
-            flushBootSector();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
     public FatFileSystem() {
+        fatfs = new FAT16X();
         // 根目录
         rootFd = Fd.builder()
                 .entry(FAT16X.DirectoryEntry.builder()
@@ -52,7 +40,10 @@ public class FatFileSystem implements IFileSystem {
                 .currentSector(fatfs.rootDirStartSectorIdx())
                 .offset(0)
                 .build();
-        // 初始化文件系统
+    }
+
+    public void mount(Disk disk) {
+        this.disk = disk;
         init();
     }
 
@@ -62,6 +53,8 @@ public class FatFileSystem implements IFileSystem {
         if(!FsHelper.isEmpty(firstSector)) {
             FAT16X.BootSector bootSector = new FAT16X.BootSector(firstSector);
             fatfs.setBootSector(bootSector);
+        } else {
+            flushBootSector();
         }
 
         fdMap.put("/", rootFd);
@@ -230,31 +223,35 @@ public class FatFileSystem implements IFileSystem {
         }
 
         synchronized(fd) {
-            int startCluster = fd.getEntry().getStartingCluster();
-
-            // 计算偏移的cluster、sector和offset
-            int sectorOffset = off / sectorSize();
-            int offset = off % sectorSize();
-            int clusterOffset = sectorOffset / sectorsPerCluster();
-            int nextCluster = startCluster;
-            while (clusterOffset > 0) {
-                // 需要找到下一个cluster
-                nextCluster = getNextCluster(nextCluster);
-                if(nextCluster == -1) {
-                    // 偏移量为文件尾
-                    sectorOffset = sectorsPerCluster() - 1;
-                    offset = sectorSize();
-                    break;
-                } else {
-                    fd.setCurrentCluster(nextCluster);
-                    clusterOffset--;
-                    sectorOffset -= sectorsPerCluster();
-                }
-            }
-            fd.setCurrentSector(fd.getCurrentCluster() * sectorsPerCluster() + sectorOffset);
-            fd.setOffset(offset);
+            setFdOffset(fd, off);
             write(fd, buf, len);
         }
+    }
+
+    public void setFdOffset(Fd fd, int off) {
+        int startCluster = fd.getEntry().getStartingCluster();
+
+        // 计算偏移的cluster、sector和offset
+        int sectorOffset = off / sectorSize();
+        int offset = off % sectorSize();
+        int clusterOffset = sectorOffset / sectorsPerCluster();
+        int nextCluster = startCluster;
+        while (clusterOffset > 0) {
+            // 需要找到下一个cluster
+            nextCluster = getNextCluster(nextCluster);
+            if(nextCluster == -1) {
+                // 偏移量为文件尾
+                sectorOffset = sectorsPerCluster() - 1;
+                offset = sectorSize();
+                break;
+            } else {
+                fd.setCurrentCluster(nextCluster);
+                clusterOffset--;
+                sectorOffset -= sectorsPerCluster();
+            }
+        }
+        fd.setCurrentSector(fd.getCurrentCluster() * sectorsPerCluster() + sectorOffset);
+        fd.setOffset(offset);
     }
 
     @Override
@@ -491,7 +488,7 @@ public class FatFileSystem implements IFileSystem {
         }
     }
 
-    private static void flushBootSector() {
+    private void flushBootSector() {
         disk.writeSector(0, fatfs.getBootSector().toBytes());
     }
 
