@@ -3,6 +3,7 @@ import com.github.sardine.Sardine;
 import com.github.sardine.SardineFactory;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
@@ -25,6 +26,7 @@ public class WebDavTest {
                 byte[] buf = new byte[length.intValue()];
                 input.read(buf);
                 System.out.println(res.getPath() + "-------" + new String(buf));
+                input.close();
             }
         }
     }
@@ -36,6 +38,34 @@ public class WebDavTest {
         //    client.createDirectory(WEBDAV_URL + "txl");
         //}
 
-        client.put(WEBDAV_URL + "test.txt", "这是一个测试文件".getBytes());
+        ByteArrayInputStream bis = new ByteArrayInputStream("test".getBytes());
+        client.put(WEBDAV_URL + "/txl/test.txt", bis);
+    }
+
+    @Test
+    public void testFileRename() throws IOException {
+        Sardine client = SardineFactory.begin("username", "123456");
+
+        String source = WEBDAV_URL + "2.log";
+        String destination = WEBDAV_URL + "txl/test.txt";
+        String rename = WEBDAV_URL + "txl/rename.txt";
+        if(client.exists(source) && !client.exists(destination)) {
+            client.copy(source, destination, false);
+        }
+
+        if(client.exists(destination) && !client.exists(rename)) {
+            client.move(destination, rename, false);
+        }
+    }
+
+    @Test
+    public void deleteFile() throws IOException {
+        Sardine client = SardineFactory.begin("username", "123456");
+
+        String source = WEBDAV_URL + "txl/rename.txt";
+
+        if(client.exists(source)) {
+            client.delete(source);
+        }
     }
 }
