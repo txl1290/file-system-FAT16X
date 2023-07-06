@@ -34,9 +34,9 @@ public class WebDavTest {
     @Test
     public void testAddFile() throws IOException {
         Sardine client = SardineFactory.begin("username", "123456");
-        //if(!client.exists(WEBDAV_URL + "txl")) {
-        //    client.createDirectory(WEBDAV_URL + "txl");
-        //}
+        if(!client.exists(WEBDAV_URL + "txl/")) {
+            client.createDirectory(WEBDAV_URL + "txl");
+        }
 
         ByteArrayInputStream bis = new ByteArrayInputStream("test".getBytes());
         client.put(WEBDAV_URL + "/txl/test.txt", bis);
@@ -63,6 +63,17 @@ public class WebDavTest {
         Sardine client = SardineFactory.begin("username", "123456");
 
         String source = WEBDAV_URL + "txl/rename.txt";
+
+        if(client.exists(source)) {
+            client.delete(source);
+        }
+    }
+
+    @Test
+    public void deleteDir() throws IOException {
+        Sardine client = SardineFactory.begin("username", "123456");
+
+        String source = WEBDAV_URL + "txl/";
 
         if(client.exists(source)) {
             client.delete(source);
