@@ -8,7 +8,7 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 public class Fd {
 
-    private FAT16X.DirectoryEntry entry;
+    private MixedEntry entry;
 
     private int currentCluster;
     private int currentSector;

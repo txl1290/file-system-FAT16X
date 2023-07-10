@@ -1,4 +1,4 @@
-package fs.fat;
+package fs.protocol;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -318,6 +318,10 @@ public class FAT16X {
             System.arraycopy(Transfer.short2Bytes(startingCluster), 0, entry, 0x1A, 2);
             System.arraycopy(Transfer.intToBytes(fileSize), 0, entry, 0x1C, 4);
             return entry;
+        }
+
+        public boolean isLongFileName(String fileName) {
+            return fileName.length() > 8;
         }
 
     }

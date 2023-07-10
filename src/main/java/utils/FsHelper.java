@@ -1,6 +1,6 @@
 package utils;
 
-import fs.fat.FAT16X;
+import fs.protocol.FAT16X;
 
 public class FsHelper {
 

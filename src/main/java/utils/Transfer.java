@@ -1,8 +1,11 @@
 package utils;
 
-import fs.fat.FAT16X;
+import fs.fat.MixedEntry;
 import fs.io.File;
+import fs.protocol.FAT16X;
+import fs.protocol.VFATX;
 
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -61,19 +64,68 @@ public class Transfer {
         return data;
     }
 
+    public static List<MixedEntry> bytesToMixEntries(byte[] data) {
+        List<MixedEntry> entries = new ArrayList<>();
+        for (int i = 0; i < data.length; i += FAT16X.ENTRY_SIZE) {
+            byte[] entryData = new byte[FAT16X.ENTRY_SIZE];
+            VFATX.LfnEntry[] lfnEntries = null;
+            FAT16X.DirectoryEntry directoryEntry;
+            System.arraycopy(data, i, entryData, 0, FAT16X.ENTRY_SIZE);
+
+            if(FsHelper.isEmpty(entryData)) {
+                break;
+            }
+
+            byte attribute = entryData[11];
+            if(attribute == VFATX.LFN_ENTRY_ATTRIBUTE) {
+                lfnEntries = new VFATX.LfnEntry[VFATX.LFN_ENTRY_COUNT];
+            }
+
+            // 还原长文件名结构
+            int index = 0;
+            while (attribute == VFATX.LFN_ENTRY_ATTRIBUTE) {
+                lfnEntries[index++] = new VFATX.LfnEntry(entryData);
+                if(i + FAT16X.ENTRY_SIZE >= data.length) {
+                    throw new IllegalStateException("Invalid entry data");
+                }
+                i += FAT16X.ENTRY_SIZE;
+                System.arraycopy(data, i, entryData, 0, FAT16X.ENTRY_SIZE);
+                attribute = entryData[11];
+            }
+
+            directoryEntry = new FAT16X.DirectoryEntry(entryData);
+
+            MixedEntry entry = new MixedEntry(lfnEntries, directoryEntry);
+            entries.add(entry);
+        }
+        return entries;
+    }
+
+    public static byte[] mixEntriesToBytes(List<MixedEntry> entries) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try {
+            for (MixedEntry entry : entries) {
+                baos.write(entry.toBytes());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return baos.toByteArray();
+    }
+
     public static int short2Int(short a) {
         return a & 0xffff;
     }
 
-    public static List<File> convertEntriesToFiles(List<FAT16X.DirectoryEntry> entries) {
+    public static List<File> convertMixEntriesToFiles(List<MixedEntry> entries) {
         List<File> files = new ArrayList<>();
-        for (FAT16X.DirectoryEntry entry : entries) {
-            files.add(convertEntryToFile(entry));
+        for (MixedEntry entry : entries) {
+            files.add(convertMixEntryToFile(entry));
         }
         return files;
     }
 
-    public static File convertEntryToFile(FAT16X.DirectoryEntry entry) {
+    public static File convertMixEntryToFile(MixedEntry entry) {
         return File.builder()
                 .name(entry.getFullName().trim())
                 .isDirectory(entry.isDir())
