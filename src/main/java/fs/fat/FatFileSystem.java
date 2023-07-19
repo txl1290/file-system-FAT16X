@@ -332,9 +332,14 @@ public class FatFileSystem implements IFileSystem {
             MixedEntry entry = fd.getEntry();
             if(entry.isDir()) {
                 byte[] buf = new byte[fatfs.sectorSize()];
+                List<Byte> left = new ArrayList<>();
                 while (fd.getCurrentCluster() >= 0) {
                     read(fd, buf, buf.length);
-                    entries.addAll(Transfer.bytesToMixEntries(buf));
+                    // 合并上次剩余的数据
+                    byte[] data = new byte[left.size() + buf.length];
+                    left.forEach(b -> data[left.indexOf(b)] = b);
+                    System.arraycopy(buf, 0, data, left.size(), buf.length);
+                    entries.addAll(Transfer.bytesToMixEntries(data, left));
                 }
             }
             return entries;
@@ -363,11 +368,11 @@ public class FatFileSystem implements IFileSystem {
         if(isDir) {
             directoryEntry.setAttribute(FAT16X.DIR_ATTR);
             String dirName = InputParser.getDirName(path);
-            file.setFileName(dirName);
+            file.setFileName(dirName, "");
         } else {
             directoryEntry.setAttribute(FAT16X.FILE_ATTR);
             String fileName = InputParser.getFileName(path);
-            file.setFileName(fileName).setFileNameExt(InputParser.getFileExtension(path));
+            file.setFileName(fileName, InputParser.getFileExtension(path));
         }
 
         synchronized(parentFd) {

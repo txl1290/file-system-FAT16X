@@ -1,5 +1,6 @@
 package app;
 
+import app.sshd.FsScpCommandFactory;
 import network.IServer;
 import org.apache.sshd.common.config.keys.KeyUtils;
 import org.apache.sshd.common.io.BuiltinIoServiceFactoryFactories;
@@ -24,6 +25,7 @@ public class FsServer implements IServer {
         sshServer.setPasswordAuthenticator((username, password, session) -> true);
         sshServer.setIoServiceFactoryFactory(BuiltinIoServiceFactoryFactories.NIO2.create());
         sshServer.getProperties().put(SshServer.IDLE_TIMEOUT, 1000 * 60 * 60 * 24);
+        sshServer.setCommandFactory(new FsScpCommandFactory());
         sshServer.start();
         sshServer.setShellFactory(new MyShellFactory());
     }
@@ -52,5 +54,4 @@ public class FsServer implements IServer {
             return new FsShell();
         }
     }
-
 }

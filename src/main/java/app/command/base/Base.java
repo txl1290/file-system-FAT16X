@@ -48,6 +48,18 @@ public class Base implements Runnable {
         }
     }
 
+    public void setIn(InputStream in) {
+        this.in = in;
+    }
+
+    public void setOut(ByteArrayOutputStream out) {
+        this.out = out;
+    }
+
+    public void setRedirectPath(String redirectPath) {
+        this.redirectPath = redirectPath;
+    }
+
     public ByteArrayOutputStream getOut() {
         return out;
     }
@@ -69,7 +81,7 @@ public class Base implements Runnable {
         }
     }
 
-    private void redirect() throws IOException {
+    public void redirect() throws IOException {
         String path;
         boolean append = false;
         if(redirectPath != null) {

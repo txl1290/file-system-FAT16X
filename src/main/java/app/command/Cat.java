@@ -20,7 +20,7 @@ public class Cat extends Base {
     @Override
     protected void executeCommand() throws IOException {
         File file = new File(getAbsolutePath(path));
-        FileInputStream in = new FileInputStream(file);
+        in = new FileInputStream(file);
         byte[] data = new byte[file.getFileSize()];
         in.read(data);
         in.close();

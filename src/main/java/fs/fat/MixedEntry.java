@@ -4,6 +4,7 @@ import fs.protocol.FAT16X;
 import fs.protocol.VFATX;
 import lombok.Builder;
 import lombok.Data;
+import org.apache.commons.lang3.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 
@@ -19,13 +20,16 @@ public class MixedEntry {
         this.directoryEntry = directoryEntry;
     }
 
-    public MixedEntry setFileName(String fileName) {
+    public MixedEntry setFileName(String fileName, String extension) {
         if(fileName.length() > VFATX.LFN_ENTRY_COUNT * VFATX.LFN_ENTRY_NAME_SIZE) {
             throw new IllegalArgumentException("File name too long");
         }
 
-        if(directoryEntry.isLongFileName(fileName)) {
+        if(directoryEntry.isLongFileName(fileName) || directoryEntry.isLongFileExtension(extension)) {
             lfnEntries = new VFATX.LfnEntry[VFATX.LFN_ENTRY_COUNT];
+            if(StringUtils.isNotEmpty(extension)) {
+                fileName = fileName + "." + extension;
+            }
             byte[] fileNameBytes = fileName.getBytes(StandardCharsets.UTF_8);
             for (int i = 0; i < lfnEntries.length; i++) {
                 int startIndex = i * VFATX.LFN_ENTRY_NAME_SIZE;
@@ -50,13 +54,8 @@ public class MixedEntry {
                 lfnEntries[VFATX.LFN_ENTRY_COUNT - i - 1] = lfnEntry;
             }
         } else {
-            directoryEntry.setFileName(fileName);
+            directoryEntry.setFileName(fileName).setFileNameExt(extension);
         }
-        return this;
-    }
-
-    public MixedEntry setFileNameExt(String extension) {
-        directoryEntry.setFileNameExt(extension);
         return this;
     }
 
@@ -67,10 +66,6 @@ public class MixedEntry {
             StringBuilder sb = new StringBuilder();
             for (int i = lfnEntries.length - 1; i >= 0; i--) {
                 sb.append(lfnEntries[i].getEntryName());
-            }
-            String ext = new String(directoryEntry.getFileNameExt()).trim();
-            if(!ext.isEmpty()) {
-                sb.append(".").append(ext);
             }
             return sb.toString();
         }

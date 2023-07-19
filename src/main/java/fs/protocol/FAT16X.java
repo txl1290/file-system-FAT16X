@@ -324,5 +324,8 @@ public class FAT16X {
             return fileName.length() > 8;
         }
 
+        public boolean isLongFileExtension(String extension) {
+            return extension.length() > 3;
+        }
     }
 }

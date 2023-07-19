@@ -64,8 +64,9 @@ public class Transfer {
         return data;
     }
 
-    public static List<MixedEntry> bytesToMixEntries(byte[] data) {
+    public static List<MixedEntry> bytesToMixEntries(byte[] data, List<Byte> leftData) {
         List<MixedEntry> entries = new ArrayList<>();
+        leftData.clear();
         for (int i = 0; i < data.length; i += FAT16X.ENTRY_SIZE) {
             byte[] entryData = new byte[FAT16X.ENTRY_SIZE];
             VFATX.LfnEntry[] lfnEntries = null;
@@ -83,20 +84,28 @@ public class Transfer {
 
             // 还原长文件名结构
             int index = 0;
+            boolean isComplete = true;
             while (attribute == VFATX.LFN_ENTRY_ATTRIBUTE) {
                 lfnEntries[index++] = new VFATX.LfnEntry(entryData);
                 if(i + FAT16X.ENTRY_SIZE >= data.length) {
-                    throw new IllegalStateException("Invalid entry data");
+                    isComplete = false;
+                    break;
                 }
                 i += FAT16X.ENTRY_SIZE;
                 System.arraycopy(data, i, entryData, 0, FAT16X.ENTRY_SIZE);
                 attribute = entryData[11];
             }
 
-            directoryEntry = new FAT16X.DirectoryEntry(entryData);
-
-            MixedEntry entry = new MixedEntry(lfnEntries, directoryEntry);
-            entries.add(entry);
+            // 磁盘上的数据不足以还原长文件名，留着下次读取
+            if(isComplete) {
+                directoryEntry = new FAT16X.DirectoryEntry(entryData);
+                MixedEntry entry = new MixedEntry(lfnEntries, directoryEntry);
+                entries.add(entry);
+            } else {
+                for (int j = data.length - FAT16X.ENTRY_SIZE * index; j < data.length; j++) {
+                    leftData.add(data[j]);
+                }
+            }
         }
         return entries;
     }
