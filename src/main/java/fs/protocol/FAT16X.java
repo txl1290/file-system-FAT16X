@@ -319,13 +319,5 @@ public class FAT16X {
             System.arraycopy(Transfer.intToBytes(fileSize), 0, entry, 0x1C, 4);
             return entry;
         }
-
-        public boolean isLongFileName(String fileName) {
-            return fileName.length() > 8;
-        }
-
-        public boolean isLongFileExtension(String extension) {
-            return extension.length() > 3;
-        }
     }
 }

@@ -3,6 +3,7 @@ package utils;
 import org.apache.commons.text.StringEscapeUtils;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Stack;
 
 public class InputParser {
@@ -92,6 +93,10 @@ public class InputParser {
         } else {
             return String.join("/", stack);
         }
+    }
+
+    public static List<String> parseChannel(String input) {
+        return Arrays.asList(input.split("\\|"));
     }
 
     private static String[] parseQuote(String content) {

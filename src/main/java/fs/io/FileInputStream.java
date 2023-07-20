@@ -15,6 +15,8 @@ public class FileInputStream extends InputStream {
 
     private final String path;
 
+    private int pos = 0;
+
     public FileInputStream(File file) {
         this.file = file;
         this.path = file.getPath();
@@ -32,14 +34,22 @@ public class FileInputStream extends InputStream {
     @Override
     public int read() {
         byte[] b = new byte[1];
-        File.fs.read(fd, b, 1);
+        readBytes(b, 0, 1);
+        pos++;
         return b[0];
     }
 
     private int readBytes(byte[] b, int off, int len) {
         synchronized(fd) {
-            File.fs.setFdOffset(fd, off);
-            File.fs.read(fd, b, len);
+            if(pos >= file.getFileSize()) {
+                return -1;
+            }
+            
+            byte[] data = new byte[len];
+            File.fs.setFdOffset(fd, pos);
+            File.fs.read(fd, data, len);
+            System.arraycopy(data, 0, b, off, len);
+            pos += len;
             return b.length;
         }
     }

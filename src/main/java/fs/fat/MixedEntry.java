@@ -25,7 +25,7 @@ public class MixedEntry {
             throw new IllegalArgumentException("File name too long");
         }
 
-        if(directoryEntry.isLongFileName(fileName) || directoryEntry.isLongFileExtension(extension)) {
+        if(isLongFileName(fileName) || isLongFileExtension(extension)) {
             lfnEntries = new VFATX.LfnEntry[VFATX.LFN_ENTRY_COUNT];
             if(StringUtils.isNotEmpty(extension)) {
                 fileName = fileName + "." + extension;
@@ -123,5 +123,13 @@ public class MixedEntry {
                     FAT16X.ENTRY_SIZE);
             return data;
         }
+    }
+
+    public boolean isLongFileName(String fileName) {
+        return fileName.length() > 8;
+    }
+
+    public boolean isLongFileExtension(String extension) {
+        return extension.length() > 3;
     }
 }
