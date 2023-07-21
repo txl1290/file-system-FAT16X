@@ -168,23 +168,6 @@ public class FatFileSystem implements IFileSystem {
         }
     }
 
-    /**
-     * 读取全量文件内容
-     */
-    public String readAll(Fd fd) {
-        if(fd == null || !fd.valid()) {
-            throw new IllegalArgumentException("invalid fd");
-        }
-
-        synchronized(fd) {
-            int size = fd.getEntry().getFileSize();
-            byte[] buf = new byte[size];
-            resetFd(fd);
-            read(fd, buf, buf.length);
-            return new String(buf, StandardCharsets.UTF_8);
-        }
-    }
-
     @Override
     public void read(Fd fd, byte[] buf, int len) {
         if(fd == null || !fd.valid()) {

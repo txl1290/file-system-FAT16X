@@ -30,7 +30,6 @@ public class Grep extends Base {
 
         BufferedReader reader = new BufferedReader(new InputStreamReader(in));
         String line;
-        // todo: 死循环
         while ((line = reader.readLine()) != null) {
             if(line.contains(find)) {
                 // 输出时把找到的内容用红色标记，可能会有多个

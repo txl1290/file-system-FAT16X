@@ -42,28 +42,6 @@ public class Transfer {
                 (b[0] & 0xFF) << 24;
     }
 
-    public static List<FAT16X.DirectoryEntry> bytesToEntries(byte[] data) {
-        List<FAT16X.DirectoryEntry> entries = new ArrayList<>();
-        for (int i = 0; i < data.length; i += FAT16X.ENTRY_SIZE) {
-            byte[] entryData = new byte[FAT16X.ENTRY_SIZE];
-            System.arraycopy(data, i, entryData, 0, FAT16X.ENTRY_SIZE);
-            FAT16X.DirectoryEntry entry = new FAT16X.DirectoryEntry(entryData);
-            if(entry.isEmpty()) {
-                break;
-            }
-            entries.add(entry);
-        }
-        return entries;
-    }
-
-    public static byte[] entriesToBytes(List<FAT16X.DirectoryEntry> entries) {
-        byte[] data = new byte[entries.size() * FAT16X.ENTRY_SIZE];
-        for (int i = 0; i < entries.size(); i++) {
-            System.arraycopy(entries.get(i).toBytes(), 0, data, i * FAT16X.ENTRY_SIZE, FAT16X.ENTRY_SIZE);
-        }
-        return data;
-    }
-
     public static List<MixedEntry> bytesToMixEntries(byte[] data, List<Byte> leftData) {
         List<MixedEntry> entries = new ArrayList<>();
         leftData.clear();
