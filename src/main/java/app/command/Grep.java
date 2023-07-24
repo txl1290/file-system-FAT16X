@@ -33,7 +33,10 @@ public class Grep extends Base {
         while ((line = reader.readLine()) != null) {
             if(line.contains(find)) {
                 // 输出时把找到的内容用红色标记，可能会有多个
-                out.write(line.replaceAll(find, "\033[31m" + find + "\033[0m").getBytes());
+                if(!isRedirect()) {
+                    line = line.replaceAll(find, "\033[31m" + find + "\033[0m");
+                }
+                out.write(line.getBytes());
                 out.write("\n".getBytes());
             }
         }

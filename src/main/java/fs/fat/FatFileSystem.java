@@ -320,7 +320,9 @@ public class FatFileSystem implements IFileSystem {
                     read(fd, buf, buf.length);
                     // 合并上次剩余的数据
                     byte[] data = new byte[left.size() + buf.length];
-                    left.forEach(b -> data[left.indexOf(b)] = b);
+                    for (int i = 0; i < left.size(); i++) {
+                        data[i] = left.get(i);
+                    }
                     System.arraycopy(buf, 0, data, left.size(), buf.length);
                     entries.addAll(Transfer.bytesToMixEntries(data, left));
                 }

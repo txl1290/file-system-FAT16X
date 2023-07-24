@@ -107,4 +107,8 @@ public class Base implements Runnable {
 
         out.reset();
     }
+
+    public boolean isRedirect() {
+        return redirectPath != null || redirectPathAppend != null;
+    }
 }

@@ -21,7 +21,7 @@ public class MixedEntry {
     }
 
     public MixedEntry setFileName(String fileName, String extension) {
-        if(fileName.length() > VFATX.LFN_ENTRY_COUNT * VFATX.LFN_ENTRY_NAME_SIZE) {
+        if((fileName.length() + extension.length() + 1) > VFATX.LFN_ENTRY_COUNT * VFATX.LFN_ENTRY_NAME_SIZE) {
             throw new IllegalArgumentException("File name too long");
         }
 

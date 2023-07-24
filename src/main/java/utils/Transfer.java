@@ -74,7 +74,7 @@ public class Transfer {
                 attribute = entryData[11];
             }
 
-            // 磁盘上的数据不足以还原长文件名，留着下次读取
+            // 磁盘块上的数据不足以还原长文件名，留着下次读取
             if(isComplete) {
                 directoryEntry = new FAT16X.DirectoryEntry(entryData);
                 MixedEntry entry = new MixedEntry(lfnEntries, directoryEntry);

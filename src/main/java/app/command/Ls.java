@@ -40,7 +40,7 @@ public class Ls extends Base {
             String colorName = file.getName();
 
             // 文件夹终端颜色
-            if(redirectPath == null && file.isDirectory()) {
+            if(!isRedirect() && file.isDirectory()) {
                 colorName = "\033[34m" + file.getName() + "\033[0m";
             }
             String fileDetail = colorName;
