@@ -23,7 +23,6 @@ public class Cat extends Base {
         in = new FileInputStream(file);
         byte[] data = new byte[file.getFileSize()];
         in.read(data);
-        in.close();
-        out.write(data);
+        writeOut(new String(data));
     }
 }

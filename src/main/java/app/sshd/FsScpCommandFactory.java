@@ -13,7 +13,6 @@ import picocli.CommandLine;
 import utils.InputParser;
 import utils.StreamUtil;
 
-import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -53,10 +52,9 @@ public class FsScpCommandFactory extends ScpCommandFactory {
             // 使用inputStream进行覆盖重定向操作，生成对应的文件
             Base redirectCommand = new Base(filePath);
             redirectCommand.setRedirectPath(filePath);
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            StreamUtil.copyStream(fis, out);
-            redirectCommand.setOut(out);
             redirectCommand.redirect();
+            OutputStream out = redirectCommand.getOut();
+            StreamUtil.copyStream(fis, out);
             out.close();
 
             // 删除临时区file
