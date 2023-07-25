@@ -17,14 +17,17 @@ import picocli.CommandLine;
 import utils.InputParser;
 import utils.StreamUtil;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadPoolExecutor;
 
 public class FsShell implements Command, Runnable {
 
@@ -41,6 +44,13 @@ public class FsShell implements Command, Runnable {
     private String username = "root";
 
     Thread sshThread;
+
+    ThreadPoolExecutor threadPoolExecutor;
+
+    {
+        threadPoolExecutor = new ThreadPoolExecutor(10, 20, 60, java.util.concurrent.TimeUnit.SECONDS,
+                new java.util.concurrent.ArrayBlockingQueue<>(100));
+    }
 
     @Override
     public void run() {
@@ -85,21 +95,60 @@ public class FsShell implements Command, Runnable {
      */
     private void execChannelCommand(String input) throws IOException {
         List<String> commandInputs = InputParser.parseChannel(input);
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        try {
-            for (String commandInput : commandInputs) {
-                execCommand(commandInput.trim(), outputStream);
-            }
-            String output = outputStream.toString();
-            if(!output.startsWith("\033") && !output.endsWith("\n") && !output.isEmpty()) {
-                outputStream.write("\n".getBytes(StandardCharsets.UTF_8));
-            }
-            outputStream.writeTo(out);
+        Map<Integer, OutputStream> outputStreamMap = new HashMap<>();
+        Map<Integer, InputStream> inputStreamMap = new HashMap<>();
 
-        } catch (CommandException e) {
+        for (int i = 0; i < commandInputs.size(); i++) {
+            PipedOutputStream outputStream = new PipedOutputStream();
+            if(i > 0) {
+                PipedInputStream inputStream = new PipedInputStream((PipedOutputStream) outputStreamMap.get(i - 1));
+                inputStreamMap.put(i, inputStream);
+            } else {
+                inputStreamMap.put(i, new PipedInputStream());
+            }
+
+            if(i == commandInputs.size() - 1) {
+                outputStreamMap.put(i, out);
+            } else {
+                outputStreamMap.put(i, outputStream);
+            }
+        }
+
+        CountDownLatch latch = new CountDownLatch(commandInputs.size() - 1);
+
+        try {
+            for (int i = 0; i < commandInputs.size(); i++) {
+                String commandInput = commandInputs.get(i);
+
+                if(i == commandInputs.size() - 1) {
+                    execCommand(commandInput.trim(), outputStreamMap.get(i), inputStreamMap.get(i));
+                } else {
+                    int finalI = i;
+                    threadPoolExecutor.execute(() -> {
+                        try {
+                            execCommand(commandInput.trim(), outputStreamMap.get(finalI), inputStreamMap.get(finalI));
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        } finally {
+                            latch.countDown();
+                            try {
+                                outputStreamMap.get(finalI).close();
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    });
+                }
+            }
+
+            // 等待所有线程执行完毕
+            latch.await();
+        } catch (CommandException | InterruptedException e) {
             StreamUtil.writeOutputStream(err, e.getMessage() + "\n");
         } finally {
-            outputStream.close();
+            for (InputStream inputStream : inputStreamMap.values()) {
+                inputStream.close();
+            }
         }
     }
 
@@ -110,10 +159,8 @@ public class FsShell implements Command, Runnable {
      * @param outputStream 上次命令的输出流
      * @throws IOException
      */
-    private void execCommand(String input, ByteArrayOutputStream outputStream) throws IOException {
+    private void execCommand(String input, OutputStream outputStream, InputStream inputStream) throws IOException {
         String command = InputParser.getCommand(input);
-        InputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-        outputStream.reset();
         try {
             input = handleNoSpaceRedirect(input.trim());
             if(input.isEmpty()) {
@@ -124,6 +171,7 @@ public class FsShell implements Command, Runnable {
 
             if("pwd".equalsIgnoreCase(command)) {
                 outputStream.write(currentDir.getPath().getBytes());
+                outputStream.write("\n".getBytes());
             } else if("cd".equalsIgnoreCase(command)) {
                 executeCd(args);
             } else if("exit".equalsIgnoreCase(command)) {
@@ -139,6 +187,8 @@ public class FsShell implements Command, Runnable {
                     CommandLine commandLine = new CommandLine(clazz.getDeclaredConstructor(String.class).newInstance(currentDir.getPath()));
 
                     ((Base) commandLine.getCommand()).setIn(inputStream);
+                    ((Base) commandLine.getCommand()).setOut(outputStream);
+                    ((Base) commandLine.getCommand()).setErr(outputStream);
 
                     // 命令使用错误提示
                     commandLine.setParameterExceptionHandler((ex, parameters) -> {
@@ -147,14 +197,6 @@ public class FsShell implements Command, Runnable {
                         return CommandLine.ExitCode.SOFTWARE;
                     });
                     commandLine.execute(args);
-
-                    // 获取命令执行结果
-                    ByteArrayOutputStream commandOutput = ((Base) commandLine.getCommand()).getOut();
-                    ByteArrayOutputStream commandErr = ((Base) commandLine.getCommand()).getErr();
-                    commandOutput.writeTo(outputStream);
-                    if(commandErr.size() > 0) {
-                        throw new CommandException(commandErr.toString());
-                    }
                 }
             }
         } catch (ClassNotFoundException e) {
@@ -163,8 +205,6 @@ public class FsShell implements Command, Runnable {
             throw new CommandException(errMsg);
         } catch (Exception e) {
             throw new CommandException(e.getMessage());
-        } finally {
-            inputStream.close();
         }
     }
 

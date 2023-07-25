@@ -5,9 +5,9 @@ import fs.io.FileOutputStream;
 import picocli.CommandLine;
 import utils.InputParser;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
 public class Base implements Runnable {
@@ -20,9 +20,9 @@ public class Base implements Runnable {
 
     protected InputStream in;
 
-    protected ByteArrayOutputStream out = new ByteArrayOutputStream();
+    protected OutputStream out;
 
-    protected ByteArrayOutputStream err = new ByteArrayOutputStream();
+    protected OutputStream err;
 
     private String curDir;
 
@@ -33,18 +33,18 @@ public class Base implements Runnable {
     @Override
     public void run() {
         try {
-            executeCommand();
             if(redirectPath != null || redirectPathAppend != null) {
                 redirect();
+            } else {
+                executeCommand();
             }
         } catch (Exception e) {
-            String errMsg = this.getClass().getSimpleName().toLowerCase() + ": " + e.getMessage();
+            String errMsg = this.getClass().getSimpleName().toLowerCase() + ": " + e.getMessage() + "\n";
             try {
                 err.write(errMsg.getBytes(StandardCharsets.UTF_8));
             } catch (IOException ex) {
                 ex.printStackTrace();
             }
-            out.reset();
         }
     }
 
@@ -52,19 +52,23 @@ public class Base implements Runnable {
         this.in = in;
     }
 
-    public void setOut(ByteArrayOutputStream out) {
+    public void setOut(OutputStream out) {
         this.out = out;
+    }
+
+    public void setErr(OutputStream out) {
+        this.err = out;
     }
 
     public void setRedirectPath(String redirectPath) {
         this.redirectPath = redirectPath;
     }
 
-    public ByteArrayOutputStream getOut() {
+    public OutputStream getOut() {
         return out;
     }
 
-    public ByteArrayOutputStream getErr() {
+    public OutputStream getErr() {
         return err;
     }
 
@@ -101,14 +105,20 @@ public class Base implements Runnable {
 
             FileOutputStream outputStream = new FileOutputStream(file, append);
 
-            out.writeTo(outputStream);
+            setOut(outputStream);
+            executeCommand();
             outputStream.close();
         }
-
-        out.reset();
     }
 
     public boolean isRedirect() {
         return redirectPath != null || redirectPathAppend != null;
+    }
+
+    public void writeOut(String data) throws IOException {
+        if(!data.startsWith("\033") && !data.endsWith("\n") && !data.isEmpty() && !isRedirect()) {
+            data += "\n";
+        }
+        out.write(data.getBytes(StandardCharsets.UTF_8));
     }
 }
