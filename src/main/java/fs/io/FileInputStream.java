@@ -1,7 +1,7 @@
 package fs.io;
 
-import fs.fat.FAT16X;
 import fs.fat.Fd;
+import fs.fat.MixedEntry;
 import utils.Transfer;
 
 import java.io.InputStream;
@@ -14,6 +14,8 @@ public class FileInputStream extends InputStream {
     private final Fd fd;
 
     private final String path;
+
+    private int pos = 0;
 
     public FileInputStream(File file) {
         this.file = file;
@@ -32,14 +34,22 @@ public class FileInputStream extends InputStream {
     @Override
     public int read() {
         byte[] b = new byte[1];
-        File.fs.read(fd, b, 1);
+        readBytes(b, 0, 1);
+        pos++;
         return b[0];
     }
-    
+
     private int readBytes(byte[] b, int off, int len) {
         synchronized(fd) {
-            File.fs.setFdOffset(fd, off);
-            File.fs.read(fd, b, len);
+            if(pos >= file.getFileSize()) {
+                return -1;
+            }
+            
+            byte[] data = new byte[len];
+            File.fs.setFdOffset(fd, pos);
+            File.fs.read(fd, data, len);
+            System.arraycopy(data, 0, b, off, len);
+            pos += len;
             return b.length;
         }
     }
@@ -55,7 +65,7 @@ public class FileInputStream extends InputStream {
     }
 
     public List<File> listFiles() {
-        List<FAT16X.DirectoryEntry> entries = File.fs.listFiles(fd);
-        return Transfer.convertEntriesToFiles(entries);
+        List<MixedEntry> entries = File.fs.listFiles(fd);
+        return Transfer.convertMixEntriesToFiles(entries);
     }
 }

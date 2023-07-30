@@ -1,4 +1,4 @@
-package fs.fat;
+package fs.protocol;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -319,6 +319,5 @@ public class FAT16X {
             System.arraycopy(Transfer.intToBytes(fileSize), 0, entry, 0x1C, 4);
             return entry;
         }
-
     }
 }

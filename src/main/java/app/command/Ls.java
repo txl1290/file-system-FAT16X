@@ -6,7 +6,6 @@ import fs.io.FileInputStream;
 import picocli.CommandLine;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @CommandLine.Command(name = "ls", mixinStandardHelpOptions = true, description = "show the files and dirs in a designated path")
@@ -24,15 +23,13 @@ public class Ls extends Base {
 
     @Override
     protected void executeCommand() throws IOException {
-        // 处理无空格的重定向
         path = getAbsolutePath(path);
 
         File dir = new File(path, true, false);
 
         FileInputStream in = new FileInputStream(dir);
         String data = showFiles(in.listFiles());
-        in.close();
-        out.write(data.getBytes(StandardCharsets.UTF_8));
+        writeOut(data);
     }
 
     private String showFiles(List<File> files) {
@@ -41,7 +38,7 @@ public class Ls extends Base {
             String colorName = file.getName();
 
             // 文件夹终端颜色
-            if(redirectPath == null && file.isDirectory()) {
+            if(!isRedirect() && file.isDirectory()) {
                 colorName = "\033[34m" + file.getName() + "\033[0m";
             }
             String fileDetail = colorName;

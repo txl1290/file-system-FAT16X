@@ -1,7 +1,7 @@
 package fs;
 
-import fs.fat.FAT16X;
 import fs.fat.Fd;
+import fs.fat.MixedEntry;
 
 import java.util.List;
 
@@ -15,7 +15,7 @@ public interface IFileSystem {
 
     public void write(Fd fd, byte[] buf, int len);
 
-    public List<FAT16X.DirectoryEntry> listFiles(Fd fd);
+    public List<MixedEntry> listFiles(Fd fd);
 
     public void appendFile(String path, boolean isDir);
 

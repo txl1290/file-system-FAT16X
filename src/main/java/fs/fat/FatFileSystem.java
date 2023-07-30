@@ -2,6 +2,7 @@ package fs.fat;
 
 import device.Disk;
 import fs.IFileSystem;
+import fs.protocol.FAT16X;
 import utils.DateUtil;
 import utils.FsHelper;
 import utils.InputParser;
@@ -29,12 +30,15 @@ public class FatFileSystem implements IFileSystem {
     public FatFileSystem() {
         fatfs = new FAT16X();
         // 根目录
+        FAT16X.DirectoryEntry directoryEntry = FAT16X.DirectoryEntry.builder()
+                .fileName("root".getBytes(StandardCharsets.UTF_8))
+                .attribute(FAT16X.DIR_ATTR)
+                .fileSize(0)
+                .startingCluster((short) fatfs.rootDirStartClusterIdx())
+                .build();
         rootFd = Fd.builder()
-                .entry(FAT16X.DirectoryEntry.builder()
-                        .fileName("root".getBytes(StandardCharsets.UTF_8))
-                        .attribute(FAT16X.DIR_ATTR)
-                        .fileSize(0)
-                        .startingCluster((short) fatfs.rootDirStartClusterIdx())
+                .entry(MixedEntry.builder()
+                        .directoryEntry(directoryEntry)
                         .build())
                 .currentCluster(fatfs.rootDirStartClusterIdx())
                 .currentSector(fatfs.rootDirStartSectorIdx())
@@ -119,10 +123,10 @@ public class FatFileSystem implements IFileSystem {
                 fd = fdMap.get(searchPath);
                 continue;
             }
-            List<FAT16X.DirectoryEntry> entries = listFiles(fd);
-            Optional<FAT16X.DirectoryEntry> entry = entries.stream().filter(e -> e.getFullName().equals(name)).findFirst();
+            List<MixedEntry> entries = listFiles(fd);
+            Optional<MixedEntry> entry = entries.stream().filter(e -> e.getFullName().equals(name)).findFirst();
             if(entry.isPresent()) {
-                FAT16X.DirectoryEntry e = entry.get();
+                MixedEntry e = entry.get();
                 parentFd = fd;
                 int startCluster = Transfer.short2Int(e.getStartingCluster());
                 fd = Fd.builder()
@@ -140,14 +144,14 @@ public class FatFileSystem implements IFileSystem {
         return fd;
     }
 
-    private void appendFile(Fd fd, FAT16X.DirectoryEntry file) {
-        List<FAT16X.DirectoryEntry> files = listFiles(fd);
+    private void appendFile(Fd fd, MixedEntry file) {
+        List<MixedEntry> files = listFiles(fd);
         if(files.stream().anyMatch(e -> e.getFullName().equals(file.getFullName()))) {
             throw new IllegalStateException("File already exists: " + file.getFullName());
         }
         file.setStartingCluster((short) allocEmptyCluster());
         files.add(file);
-        byte[] data = Transfer.entriesToBytes(files);
+        byte[] data = Transfer.mixEntriesToBytes(files);
         resetFd(fd);
         write(fd, data, data.length);
     }
@@ -157,26 +161,10 @@ public class FatFileSystem implements IFileSystem {
         synchronized(fd) {
             if(fd != rootFd) {
                 flushFd(fd);
-                collectFileCluster(Transfer.short2Int(fd.getEntry().getStartingCluster()), fd.getEntry().getFileSize());
+                collectFileCluster(Transfer.short2Int(fd.getEntry().getStartingCluster()),
+                        fd.getEntry().getFileSize());
                 fd.close();
             }
-        }
-    }
-
-    /**
-     * 读取全量文件内容
-     */
-    public String readAll(Fd fd) {
-        if(fd == null || !fd.valid()) {
-            throw new IllegalArgumentException("invalid fd");
-        }
-
-        synchronized(fd) {
-            int size = fd.getEntry().getFileSize();
-            byte[] buf = new byte[size];
-            resetFd(fd);
-            read(fd, buf, buf.length);
-            return new String(buf, StandardCharsets.UTF_8);
         }
     }
 
@@ -229,6 +217,7 @@ public class FatFileSystem implements IFileSystem {
     }
 
     public void setFdOffset(Fd fd, int off) {
+        resetFd(fd);
         int startCluster = fd.getEntry().getStartingCluster();
 
         // 计算偏移的cluster、sector和offset
@@ -261,7 +250,7 @@ public class FatFileSystem implements IFileSystem {
         }
 
         synchronized(fd) {
-            FAT16X.DirectoryEntry entry = fd.getEntry();
+            MixedEntry entry = fd.getEntry();
             int clusterIdx = fd.getCurrentCluster();
             int sectorIdx = fd.getCurrentSector();
             int offset = fd.getOffset();
@@ -315,7 +304,7 @@ public class FatFileSystem implements IFileSystem {
     }
 
     @Override
-    public List<FAT16X.DirectoryEntry> listFiles(Fd fd) {
+    public List<MixedEntry> listFiles(Fd fd) {
         if(fd == null || !fd.valid()) {
             throw new IllegalArgumentException("invalid fd");
         }
@@ -323,13 +312,20 @@ public class FatFileSystem implements IFileSystem {
         synchronized(fd) {
             resetFd(fd);
 
-            List<FAT16X.DirectoryEntry> entries = new ArrayList<>();
-            FAT16X.DirectoryEntry entry = fd.getEntry();
+            List<MixedEntry> entries = new ArrayList<>();
+            MixedEntry entry = fd.getEntry();
             if(entry.isDir()) {
                 byte[] buf = new byte[fatfs.sectorSize()];
+                List<Byte> left = new ArrayList<>();
                 while (fd.getCurrentCluster() >= 0) {
                     read(fd, buf, buf.length);
-                    entries.addAll(Transfer.bytesToEntries(buf));
+                    // 合并上次剩余的数据
+                    byte[] data = new byte[left.size() + buf.length];
+                    for (int i = 0; i < left.size(); i++) {
+                        data[i] = left.get(i);
+                    }
+                    System.arraycopy(buf, 0, data, left.size(), buf.length);
+                    entries.addAll(Transfer.bytesToMixEntries(data, left));
                 }
             }
             return entries;
@@ -345,19 +341,24 @@ public class FatFileSystem implements IFileSystem {
         if(parentFd == null) {
             throw new IllegalArgumentException("invalid path");
         }
-        FAT16X.DirectoryEntry file = FAT16X.DirectoryEntry.builder()
+
+        FAT16X.DirectoryEntry directoryEntry = FAT16X.DirectoryEntry.builder()
                 .creationTimeStamp(DateUtil.getCurrentTime())
                 .lastAccessDateStamp(DateUtil.getCurrentDateTimeStamp())
                 .lastWriteTimeStamp(DateUtil.getCurrentTime())
                 .fileSize(0)
                 .build();
 
+        MixedEntry file = new MixedEntry(null, directoryEntry);
+
         if(isDir) {
-            file.setAttribute(FAT16X.DIR_ATTR);
-            file.setFileName(InputParser.getDirName(path));
+            directoryEntry.setAttribute(FAT16X.DIR_ATTR);
+            String dirName = InputParser.getDirName(path);
+            file.setFileName(dirName, "");
         } else {
-            file.setAttribute(FAT16X.FILE_ATTR);
-            file.setFileName(InputParser.getFileName(path)).setFileNameExt(InputParser.getFileExtension(path));
+            directoryEntry.setAttribute(FAT16X.FILE_ATTR);
+            String fileName = InputParser.getFileName(path);
+            file.setFileName(fileName, InputParser.getFileExtension(path));
         }
 
         synchronized(parentFd) {
@@ -382,22 +383,26 @@ public class FatFileSystem implements IFileSystem {
         }
     }
 
-    private void removeFile(Fd fd, FAT16X.DirectoryEntry entry) {
+    private void removeFile(Fd fd, MixedEntry entry) {
         synchronized(fd) {
-            List<FAT16X.DirectoryEntry> files = listFiles(fd);
-            Iterator<FAT16X.DirectoryEntry> it = files.iterator();
+            List<MixedEntry> files = listFiles(fd);
+            Iterator<MixedEntry> it = files.iterator();
             while (it.hasNext()) {
-                FAT16X.DirectoryEntry file = it.next();
+                MixedEntry file = it.next();
                 if(file.getFullName().equals(entry.getFullName())) {
                     it.remove();
                     break;
                 }
             }
-            byte[] buf = Transfer.entriesToBytes(files);
+            byte[] buf = Transfer.mixEntriesToBytes(files);
             resetFd(fd);
             // 覆盖原来的目录条目，删除导致的多余部分用0填充
             write(fd, buf, buf.length);
-            write(fd, new byte[FAT16X.ENTRY_SIZE], FAT16X.ENTRY_SIZE);
+            int resetSize = FAT16X.ENTRY_SIZE;
+            if(entry.getLfnEntries() != null) {
+                resetSize += entry.getLfnEntries().length * FAT16X.ENTRY_SIZE;
+            }
+            write(fd, new byte[resetSize], resetSize);
         }
     }
 
@@ -469,20 +474,20 @@ public class FatFileSystem implements IFileSystem {
      * 刷新文件描述符的目录项
      */
     private void flushFd(Fd fd) {
-        FAT16X.DirectoryEntry entry = fd.getEntry();
+        MixedEntry entry = fd.getEntry();
         Fd parentFd = fd.getParentFd();
         synchronized(parentFd) {
-            List<FAT16X.DirectoryEntry> entries = listFiles(parentFd);
+            List<MixedEntry> entries = listFiles(parentFd);
             // 从entries中找到entry，替换
             for (int i = 0; i < entries.size(); i++) {
-                FAT16X.DirectoryEntry e = entries.get(i);
+                MixedEntry e = entries.get(i);
                 if(e.getFullName().equals(entry.getFullName())) {
                     entries.set(i, entry);
                     break;
                 }
             }
 
-            byte[] buf = Transfer.entriesToBytes(entries);
+            byte[] buf = Transfer.mixEntriesToBytes(entries);
             resetFd(parentFd);
             write(parentFd, buf, buf.length);
         }

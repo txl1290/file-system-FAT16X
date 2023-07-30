@@ -5,7 +5,6 @@ import fs.io.File;
 import picocli.CommandLine;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 
 @CommandLine.Command(name = "format", mixinStandardHelpOptions = true, description = "format the file system")
 public class Format extends Base {
@@ -18,7 +17,7 @@ public class Format extends Base {
     public void run() {
         File.fs.format();
         try {
-            out.write("file system format success".getBytes(StandardCharsets.UTF_8));
+            writeOut("file system format success");
         } catch (IOException e) {
             e.printStackTrace();
         }

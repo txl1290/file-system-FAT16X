@@ -1,6 +1,7 @@
 package app;
 
 import app.command.base.Base;
+import app.exceptions.CommandException;
 import app.terminal.HistoryCompleter;
 import fs.io.File;
 import org.apache.sshd.server.Environment;
@@ -16,11 +17,17 @@ import picocli.CommandLine;
 import utils.InputParser;
 import utils.StreamUtil;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadPoolExecutor;
 
 public class FsShell implements Command, Runnable {
 
@@ -38,6 +45,13 @@ public class FsShell implements Command, Runnable {
 
     Thread sshThread;
 
+    ThreadPoolExecutor threadPoolExecutor;
+
+    {
+        threadPoolExecutor = new ThreadPoolExecutor(10, 20, 60, java.util.concurrent.TimeUnit.SECONDS,
+                new java.util.concurrent.ArrayBlockingQueue<>(100));
+    }
+
     @Override
     public void run() {
         try {
@@ -48,7 +62,7 @@ public class FsShell implements Command, Runnable {
                 StreamUtil.writeOutputStream(out, "\r" + username + "@" + FS_NAME + ":" + currentDir.getPath() + "$ ");
                 while (scanner.hasNextLine()) {
                     String input = scanner.nextLine();
-                    execCommand(input);
+                    execChannelCommand(input);
                     StreamUtil.writeOutputStream(out, "\r" + username + "@" + FS_NAME + ":" + currentDir.getPath() + "$ ");
                 }
             } else {
@@ -65,7 +79,7 @@ public class FsShell implements Command, Runnable {
                     String prefix = "\r" + username + "@" + FS_NAME + ":" + currentDir.getPath() + "$ ";
                     try {
                         String input = lineReader.readLine(prefix);
-                        execCommand(input);
+                        execChannelCommand(input);
                     } catch (Exception e) {
                         break;
                     }
@@ -76,7 +90,76 @@ public class FsShell implements Command, Runnable {
         }
     }
 
-    private void execCommand(String input) throws IOException {
+    /**
+     * 处理带管道的命令输入
+     */
+    private void execChannelCommand(String input) throws IOException {
+        List<String> commandInputs = InputParser.parseChannel(input);
+        Map<Integer, OutputStream> outputStreamMap = new HashMap<>();
+        Map<Integer, InputStream> inputStreamMap = new HashMap<>();
+
+        for (int i = 0; i < commandInputs.size(); i++) {
+            PipedOutputStream outputStream = new PipedOutputStream();
+            if(i > 0) {
+                PipedInputStream inputStream = new PipedInputStream((PipedOutputStream) outputStreamMap.get(i - 1));
+                inputStreamMap.put(i, inputStream);
+            } else {
+                inputStreamMap.put(i, new PipedInputStream());
+            }
+
+            if(i == commandInputs.size() - 1) {
+                outputStreamMap.put(i, out);
+            } else {
+                outputStreamMap.put(i, outputStream);
+            }
+        }
+
+        CountDownLatch latch = new CountDownLatch(commandInputs.size() - 1);
+
+        try {
+            for (int i = 0; i < commandInputs.size(); i++) {
+                String commandInput = commandInputs.get(i);
+
+                if(i == commandInputs.size() - 1) {
+                    execCommand(commandInput.trim(), outputStreamMap.get(i), inputStreamMap.get(i));
+                } else {
+                    int finalI = i;
+                    threadPoolExecutor.execute(() -> {
+                        try {
+                            execCommand(commandInput.trim(), outputStreamMap.get(finalI), inputStreamMap.get(finalI));
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        } finally {
+                            latch.countDown();
+                            try {
+                                outputStreamMap.get(finalI).close();
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    });
+                }
+            }
+
+            // 等待所有线程执行完毕
+            latch.await();
+        } catch (CommandException | InterruptedException e) {
+            StreamUtil.writeOutputStream(err, e.getMessage() + "\n");
+        } finally {
+            for (InputStream inputStream : inputStreamMap.values()) {
+                inputStream.close();
+            }
+        }
+    }
+
+    /**
+     * 执行命令
+     *
+     * @param input 输入的命令
+     * @param outputStream 上次命令的输出流
+     * @throws IOException
+     */
+    private void execCommand(String input, OutputStream outputStream, InputStream inputStream) throws IOException {
         String command = InputParser.getCommand(input);
         try {
             input = handleNoSpaceRedirect(input.trim());
@@ -87,7 +170,8 @@ public class FsShell implements Command, Runnable {
             String[] args = InputParser.getArgs(input);
 
             if("pwd".equalsIgnoreCase(command)) {
-                StreamUtil.writeOutputStream(out, currentDir.getPath() + "\n");
+                outputStream.write(currentDir.getPath().getBytes());
+                outputStream.write("\n".getBytes());
             } else if("cd".equalsIgnoreCase(command)) {
                 executeCd(args);
             } else if("exit".equalsIgnoreCase(command)) {
@@ -102,6 +186,10 @@ public class FsShell implements Command, Runnable {
                 if(clazz.isAnnotationPresent(CommandLine.Command.class)) {
                     CommandLine commandLine = new CommandLine(clazz.getDeclaredConstructor(String.class).newInstance(currentDir.getPath()));
 
+                    ((Base) commandLine.getCommand()).setIn(inputStream);
+                    ((Base) commandLine.getCommand()).setOut(outputStream);
+                    ((Base) commandLine.getCommand()).setErr(outputStream);
+
                     // 命令使用错误提示
                     commandLine.setParameterExceptionHandler((ex, parameters) -> {
                         StreamUtil.writeOutputStream(err, ex.getMessage() + "\n");
@@ -109,32 +197,18 @@ public class FsShell implements Command, Runnable {
                         return CommandLine.ExitCode.SOFTWARE;
                     });
                     commandLine.execute(args);
-
-                    // 获取命令执行结果
-                    ByteArrayOutputStream commandOutput = ((Base) commandLine.getCommand()).getOut();
-                    ByteArrayOutputStream commandErr = ((Base) commandLine.getCommand()).getErr();
-                    commandOutput.writeTo(out);
-                    commandErr.writeTo(err);
-                    if(!"clear".equalsIgnoreCase(command) && commandOutput.size() > 0) {
-                        out.write("\n".getBytes());
-                        out.flush();
-                    }
-                    if(!"clear".equalsIgnoreCase(command) && commandErr.size() > 0) {
-                        err.write("\n".getBytes());
-                        err.flush();
-                    }
                 }
             }
         } catch (ClassNotFoundException e) {
             String errMsg = "command " + command + " not found : "
-                    + "you can use 'cd', 'echo', 'ls', 'mkdir', 'pwd', 'touch', 'cat', 'll' app.command to operate the file system or use 'exit' app.command to exit the terminal\n";
-            StreamUtil.writeOutputStream(err, errMsg);
+                    + "you can use 'cd', 'echo', 'ls', 'mkdir', 'pwd', 'touch', 'cat', 'll' app.command to operate the file system or use 'exit' app.command to exit the terminal";
+            throw new CommandException(errMsg);
         } catch (Exception e) {
-            StreamUtil.writeOutputStream(err, e.getMessage() + "\n");
+            throw new CommandException(e.getMessage());
         }
     }
 
-    private void executeCd(String[] args) throws IOException {
+    private void executeCd(String[] args) {
         if(args.length == 0) {
             currentDir = new File("/");
         } else {
@@ -143,7 +217,7 @@ public class FsShell implements Command, Runnable {
             if(dir.exist()) {
                 currentDir = dir;
             } else {
-                StreamUtil.writeOutputStream(err, "cd: " + dirPath + ": No such directory\n");
+                throw new CommandException("cd: " + dirPath + ": No such directory");
             }
         }
     }
