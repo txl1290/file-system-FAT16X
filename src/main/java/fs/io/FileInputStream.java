@@ -44,7 +44,7 @@ public class FileInputStream extends InputStream {
             if(pos >= file.getFileSize()) {
                 return -1;
             }
-            
+
             byte[] data = new byte[len];
             File.fs.setFdOffset(fd, pos);
             File.fs.read(fd, data, len);
@@ -66,6 +66,10 @@ public class FileInputStream extends InputStream {
 
     public List<File> listFiles() {
         List<MixedEntry> entries = File.fs.listFiles(fd);
-        return Transfer.convertMixEntriesToFiles(entries);
+        return Transfer.convertMixEntriesToFiles(path, entries);
+    }
+
+    public int getSize() {
+        return fd.getEntry().getFileSize();
     }
 }
