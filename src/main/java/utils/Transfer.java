@@ -104,16 +104,17 @@ public class Transfer {
         return a & 0xffff;
     }
 
-    public static List<File> convertMixEntriesToFiles(List<MixedEntry> entries) {
+    public static List<File> convertMixEntriesToFiles(String path, List<MixedEntry> entries) {
         List<File> files = new ArrayList<>();
         for (MixedEntry entry : entries) {
-            files.add(convertMixEntryToFile(entry));
+            files.add(convertMixEntryToFile(path, entry));
         }
         return files;
     }
 
-    public static File convertMixEntryToFile(MixedEntry entry) {
+    public static File convertMixEntryToFile(String path, MixedEntry entry) {
         return File.builder()
+                .path(path + "/" + entry.getFullName().trim())
                 .name(entry.getFullName().trim())
                 .isDirectory(entry.isDir())
                 .isFile(entry.isFile())
