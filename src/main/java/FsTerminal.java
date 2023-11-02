@@ -1,5 +1,6 @@
 import app.FsServer;
 import app.FsShell;
+import app.application.Installer;
 import device.Disk;
 import fs.io.File;
 
@@ -17,10 +18,16 @@ public class FsTerminal {
             if(!file.exists()) {
                 file.createNewFile();
             }
+
+            // 挂载磁盘
             RandomAccessFile fw = new RandomAccessFile(file, "rwd");
             fw.setLength(2L * 1024 * 1024 * 1024);
             Disk disk = new Disk(fw);
             File.fs.mount(disk);
+
+            // 安装内置应用
+            Installer installer = new Installer();
+            installer.installInnerApp();
         } catch (IOException e) {
             e.printStackTrace();
         }
