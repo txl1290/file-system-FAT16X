@@ -1,6 +1,6 @@
 package app;
 
-import app.application.Application;
+import app.application.BaseApplication;
 import app.application.Executor;
 import app.application.JavaApplication;
 import app.command.base.Base;
@@ -115,7 +115,7 @@ public class FsShell implements Command, Runnable {
         }
     }
 
-    private Application getApplication(String appName) {
+    private BaseApplication getApplication(String appName) {
         File appFile = new File("/bin/" + appName);
         FileInputStream inputStream = new FileInputStream(appFile);
         byte[] buff = new byte[1024];
@@ -219,7 +219,7 @@ public class FsShell implements Command, Runnable {
                 callback.onExit(0);
             } else {
                 if(apps.contains(command)) {
-                    Application app = getApplication(command);
+                    BaseApplication app = getApplication(command);
                     executor.execute(app, args, outputStream, inputStream);
                     // todo: 应用的输出怎么绑定到终端上？
                 } else {

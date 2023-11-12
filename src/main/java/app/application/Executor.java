@@ -10,7 +10,7 @@ import java.io.OutputStream;
  */
 public class Executor {
 
-    public void execute(Application app, String[] args, OutputStream out, InputStream in) {
+    public void execute(BaseApplication app, String[] args, OutputStream out, InputStream in) {
         app.setIn(in);
         app.setOut(out);
         app.setErr(out);

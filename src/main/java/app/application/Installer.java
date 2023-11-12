@@ -14,7 +14,7 @@ import java.util.List;
  */
 public class Installer {
 
-    List<Application> applications = new ArrayList<>();
+    List<BaseApplication> applications = new ArrayList<>();
 
     public Installer() {
         init();
@@ -32,7 +32,7 @@ public class Installer {
         reset();
     }
 
-    public void addApplication(Application app) {
+    public void addApplication(BaseApplication app) {
         applications.add(app);
     }
 
@@ -53,7 +53,7 @@ public class Installer {
             String name = file.getName();
             try {
                 Class<?> clazz = Class.forName("app.application.inner." + name.substring(0, name.lastIndexOf(".")));
-                Application app = (Application) clazz.newInstance();
+                BaseApplication app = (BaseApplication) clazz.newInstance();
                 addApplication(app);
             } catch (ClassNotFoundException | InstantiationException | IllegalAccessException e) {
                 throw new IllegalStateException("load inner app error", e);
@@ -62,7 +62,7 @@ public class Installer {
         install();
     }
 
-    private void install(Application app) {
+    private void install(BaseApplication app) {
         String name = app.name();
         String content = app.content();
         // 把应用写到磁盘的bin目录下

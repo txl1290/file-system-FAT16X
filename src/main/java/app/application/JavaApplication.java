@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 
 @SuperBuilder
-public class JavaApplication extends Application {
+public class JavaApplication extends BaseApplication {
 
     private static InnerJavaCompiler compiler = new InnerJavaCompiler();
 
