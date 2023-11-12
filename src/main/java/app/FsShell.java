@@ -58,7 +58,6 @@ public class FsShell implements Command, Runnable {
     {
         threadPoolExecutor = new ThreadPoolExecutor(10, 20, 60, java.util.concurrent.TimeUnit.SECONDS,
                 new java.util.concurrent.ArrayBlockingQueue<>(100));
-        scanApp();
     }
 
     @Override
@@ -66,6 +65,8 @@ public class FsShell implements Command, Runnable {
         try {
             DefaultHistory history = new DefaultHistory();
             FsShellContext.setCurrentPath(new File("/"));
+
+            scanApp();
 
             if(sshThread == null) {
                 Scanner scanner = new Scanner(in);
@@ -102,7 +103,6 @@ public class FsShell implements Command, Runnable {
 
     /**
      * 扫描所有安装的应用
-     * todo: 无法动态加载编辑后的内容，定时更新
      */
     private void scanApp() {
         //简化PATH，这里特定指的是bin目录下的文件

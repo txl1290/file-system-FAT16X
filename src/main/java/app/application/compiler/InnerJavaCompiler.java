@@ -31,15 +31,12 @@ public class InnerJavaCompiler {
 
     private JavaFileManager fileManager;
 
-    private CustomClassLoader classLoader;
-
     private DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
 
     public InnerJavaCompiler() {
         compiler = ToolProvider.getSystemJavaCompiler();
         // 创建一个内存中的虚拟文件系统
         fileManager = new InMemoryFileManager(compiler.getStandardFileManager(diagnostics, null, null));
-        classLoader = new CustomClassLoader(fileManager);
     }
 
     public void compile(JavaApplication app)
@@ -55,6 +52,7 @@ public class InnerJavaCompiler {
 
         if(success) {
             // 加载并执行编译后的类
+            CustomClassLoader classLoader = new CustomClassLoader(fileManager);
             Class<?> compiledClass = classLoader.loadClass(app.name());
             ByteArrayOutputStream out = (ByteArrayOutputStream) compiledClass.getDeclaredMethod("run", InputStream.class, String[].class)
                     .invoke(compiledClass.newInstance(), app.getIn(), app.getArgs());
