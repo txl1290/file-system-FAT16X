@@ -24,12 +24,6 @@ public class Base implements Runnable {
 
     protected OutputStream err;
 
-    private String curDir;
-
-    public Base(String curDir) {
-        this.curDir = curDir;
-    }
-
     @Override
     public void run() {
         try {
@@ -75,16 +69,6 @@ public class Base implements Runnable {
     protected void executeCommand() throws IOException {
     }
 
-    protected String getAbsolutePath(String path) {
-        if(path == null) {
-            return curDir;
-        } else if(InputParser.isAbsolutePath(path)) {
-            return InputParser.trimPath(path);
-        } else {
-            return InputParser.trimPath(curDir + "/" + path);
-        }
-    }
-
     public void redirect() throws IOException {
         String path;
         boolean append = false;
@@ -95,7 +79,7 @@ public class Base implements Runnable {
             append = true;
         }
 
-        File file = new File(getAbsolutePath(path));
+        File file = new File(InputParser.getAbsolutePath(path));
 
         // 这里加了一个同步锁防止报重复创建文件的错误
         synchronized(File.fs) {

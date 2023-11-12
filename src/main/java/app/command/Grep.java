@@ -4,6 +4,7 @@ import app.command.base.Base;
 import fs.io.File;
 import fs.io.FileInputStream;
 import picocli.CommandLine;
+import utils.InputParser;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -19,14 +20,10 @@ public class Grep extends Base {
     @CommandLine.Parameters(arity = "0..1", description = "The file path")
     private String path;
 
-    public Grep(String curDir) {
-        super(curDir);
-    }
-
     @Override
     protected void executeCommand() throws IOException {
         if(path != null) {
-            in = new FileInputStream(new File(getAbsolutePath(path)));
+            in = new FileInputStream(new File(InputParser.getAbsolutePath(path)));
         }
 
         BufferedReader reader = new BufferedReader(new InputStreamReader(in));

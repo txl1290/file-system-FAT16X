@@ -1,5 +1,7 @@
 package app.application.compiler;
 
+import app.application.JavaApplication;
+
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
 import javax.tools.FileObject;
@@ -11,6 +13,7 @@ import javax.tools.SimpleJavaFileObject;
 import javax.tools.ToolProvider;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
@@ -26,21 +29,25 @@ public class InnerJavaCompiler {
 
     private JavaCompiler compiler;
 
+    private JavaFileManager fileManager;
+
+    private CustomClassLoader classLoader;
+
+    private DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+
     public InnerJavaCompiler() {
         compiler = ToolProvider.getSystemJavaCompiler();
+        // 创建一个内存中的虚拟文件系统
+        fileManager = new InMemoryFileManager(compiler.getStandardFileManager(diagnostics, null, null));
+        classLoader = new CustomClassLoader(fileManager);
     }
 
-    public void compile(String name, String code)
-            throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, ClassNotFoundException {
+    public void compile(JavaApplication app)
+            throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, ClassNotFoundException, InstantiationException,
+            IOException {
 
         // 创建一个Java文件对象，用于包装代码字符串
-        JavaFileObject fileObject = new DynamicJavaObject(name, code);
-
-        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-        // 创建一个内存中的虚拟文件系统
-        JavaFileManager fileManager = new InMemoryFileManager(compiler.getStandardFileManager(diagnostics, null, null));
-
-        CustomClassLoader classLoader = new CustomClassLoader(fileManager);
+        JavaFileObject fileObject = new DynamicJavaObject(app.name(), app.content());
 
         // 编译Java代码
         JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, diagnostics, null, null, Arrays.asList(fileObject));
@@ -48,8 +55,11 @@ public class InnerJavaCompiler {
 
         if(success) {
             // 加载并执行编译后的类
-            Class<?> compiledClass = classLoader.loadClass(name);
-            compiledClass.getDeclaredMethod("main", String[].class).invoke(null, (Object) new String[0]);
+            Class<?> compiledClass = classLoader.loadClass(app.name());
+            ByteArrayOutputStream out = (ByteArrayOutputStream) compiledClass.getDeclaredMethod("run", InputStream.class, String[].class)
+                    .invoke(compiledClass.newInstance(), app.getIn(), app.getArgs());
+            out.writeTo(app.getOut());
+            System.out.println("success");
         } else {
             // 处理编译错误
             for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {

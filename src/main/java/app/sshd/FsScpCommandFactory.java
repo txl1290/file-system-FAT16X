@@ -1,7 +1,7 @@
 package app.sshd;
 
+import app.FsShellContext;
 import app.command.Mkdir;
-import app.command.base.Base;
 import fs.fat.Fd;
 import fs.io.File;
 import fs.io.FileOutputStream;
@@ -10,20 +10,15 @@ import org.apache.sshd.common.scp.ScpFileOpener;
 import org.apache.sshd.common.scp.ScpSourceStreamResolver;
 import org.apache.sshd.common.scp.ScpTargetStreamResolver;
 import org.apache.sshd.common.scp.ScpTimestamp;
-import org.apache.sshd.common.scp.ScpTransferEventListener;
 import org.apache.sshd.common.session.Session;
 import org.apache.sshd.server.scp.ScpCommandFactory;
 import picocli.CommandLine;
 import utils.InputParser;
-import utils.StreamUtil;
 
-import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -94,17 +89,18 @@ public class FsScpCommandFactory extends ScpCommandFactory {
             // 实现具体的写入逻辑
             String dirPath = InputParser.getFileParentPath(path.toString());
             // 创建目录
-            CommandLine commandLine = new CommandLine(new Mkdir("/"));
+            FsShellContext.setCurrentPath(new File("/"));
+            CommandLine commandLine = new CommandLine(new Mkdir());
             commandLine.execute(dirPath, "-p");
-            
+
             // 创建文件
             File file = new File(path.toString());
             if(file.exist()) {
                 file.remove();
             }
             file.create();
-            
-            return new FileOutputStream(file);
+
+            return new FileOutputStream(file, true);
         }
 
         @Override
@@ -117,12 +113,13 @@ public class FsScpCommandFactory extends ScpCommandFactory {
         public Path resolveIncomingReceiveLocation(Session session, Path path, boolean recursive, boolean shouldBeDir, boolean preserve) {
             return path;
         }
-        
+
         @Override
-        public Path resolveIncomingFilePath(Session session, Path localPath, String name, boolean preserve, Set<PosixFilePermission> permissions, ScpTimestamp time) {
+        public Path resolveIncomingFilePath(Session session, Path localPath, String name, boolean preserve, Set<PosixFilePermission> permissions,
+                ScpTimestamp time) {
             return localPath.resolve(name);
         }
-        
+
     }
 
     public static class MyDirectoryStream implements DirectoryStream<Path> {

@@ -1,5 +1,7 @@
 package utils;
 
+import app.FsShellContext;
+import lombok.Data;
 import org.apache.commons.text.StringEscapeUtils;
 
 import java.util.Arrays;
@@ -13,8 +15,7 @@ public class InputParser {
         if(command.isEmpty()) {
             return "";
         } else {
-            //首字母大写
-            return command.substring(0, 1).toUpperCase() + command.substring(1).toLowerCase();
+            return command;
         }
     }
 
@@ -99,6 +100,34 @@ public class InputParser {
         return Arrays.asList(input.split("\\|"));
     }
 
+    public static RedirectParam parseRedirect(String[] args) {
+        RedirectParam redirect = new RedirectParam();
+        for (int i = 0; i < args.length; i++) {
+            if(">".equals(args[i])) {
+                redirect.setRedirectPath(args[i + 1]);
+                args[i] = null;
+                args[i + 1] = null;
+            } else if(">>".equals(args[i])) {
+                redirect.setRedirectPathAppend(args[i + 1]);
+                args[i] = null;
+                args[i + 1] = null;
+            }
+        }
+        redirect.setArgs(Arrays.stream(args).filter(arg -> arg != null).toArray(String[]::new));
+        return redirect;
+    }
+
+    public static String getAbsolutePath(String path) {
+        String curDir = FsShellContext.getCurrentPath().getPath();
+        if(path == null) {
+            return curDir;
+        } else if(InputParser.isAbsolutePath(path)) {
+            return InputParser.trimPath(path);
+        } else {
+            return InputParser.trimPath(curDir + "/" + path);
+        }
+    }
+
     private static String[] parseQuote(String content) {
         // 找到单引号或双引号包起来的内容，谁成对先出现就用谁
         int singleStart = content.indexOf('\'');
@@ -170,5 +199,15 @@ public class InputParser {
         } else {
             return content;
         }
+    }
+
+    @Data
+    public static class RedirectParam {
+
+        private String[] args;
+
+        private String redirectPath;
+
+        private String redirectPathAppend;
     }
 }

@@ -1,9 +1,13 @@
 package app;
 
+import app.application.Application;
+import app.application.Executor;
+import app.application.JavaApplication;
 import app.command.base.Base;
 import app.exceptions.CommandException;
 import app.terminal.HistoryCompleter;
 import fs.io.File;
+import fs.io.FileInputStream;
 import org.apache.sshd.server.Environment;
 import org.apache.sshd.server.ExitCallback;
 import org.apache.sshd.server.channel.ChannelSession;
@@ -22,18 +26,19 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 
 public class FsShell implements Command, Runnable {
 
     public static final String FS_NAME = "mos";
-
-    File currentDir = new File("/");
 
     private InputStream in;
     private OutputStream out;
@@ -42,28 +47,33 @@ public class FsShell implements Command, Runnable {
     private ExitCallback callback;
 
     private String username = "root";
+    private Thread sshThread;
 
-    Thread sshThread;
+    private ThreadPoolExecutor threadPoolExecutor;
 
-    ThreadPoolExecutor threadPoolExecutor;
+    private Set<String> apps = new HashSet<>();
+
+    private Executor executor = new Executor();
 
     {
         threadPoolExecutor = new ThreadPoolExecutor(10, 20, 60, java.util.concurrent.TimeUnit.SECONDS,
                 new java.util.concurrent.ArrayBlockingQueue<>(100));
+        scanApp();
     }
 
     @Override
     public void run() {
         try {
             DefaultHistory history = new DefaultHistory();
+            FsShellContext.setCurrentPath(new File("/"));
 
             if(sshThread == null) {
                 Scanner scanner = new Scanner(in);
-                StreamUtil.writeOutputStream(out, "\r" + username + "@" + FS_NAME + ":" + currentDir.getPath() + "$ ");
+                StreamUtil.writeOutputStream(out, "\r" + username + "@" + FS_NAME + ":" + FsShellContext.getCurrentPath().getPath() + "$ ");
                 while (scanner.hasNextLine()) {
                     String input = scanner.nextLine();
                     execChannelCommand(input);
-                    StreamUtil.writeOutputStream(out, "\r" + username + "@" + FS_NAME + ":" + currentDir.getPath() + "$ ");
+                    StreamUtil.writeOutputStream(out, "\r" + username + "@" + FS_NAME + ":" + FsShellContext.getCurrentPath().getPath() + "$ ");
                 }
             } else {
                 Terminal terminal = TerminalBuilder.builder().streams(in, out).encoding("UTF-8").build();
@@ -76,7 +86,7 @@ public class FsShell implements Command, Runnable {
                 this.out = terminal.output();
 
                 while (true) {
-                    String prefix = "\r" + username + "@" + FS_NAME + ":" + currentDir.getPath() + "$ ";
+                    String prefix = "\r" + username + "@" + FS_NAME + ":" + FsShellContext.getCurrentPath().getPath() + "$ ";
                     try {
                         String input = lineReader.readLine(prefix);
                         execChannelCommand(input);
@@ -88,6 +98,37 @@ public class FsShell implements Command, Runnable {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * 扫描所有安装的应用
+     * todo: 无法动态加载编辑后的内容，定时更新
+     */
+    private void scanApp() {
+        //简化PATH，这里特定指的是bin目录下的文件
+        File binDir = new File("/bin", true, false);
+        FileInputStream inputStream = new FileInputStream(binDir);
+        List<File> appFiles = inputStream.listFiles();
+        for (File appFile : appFiles) {
+            String appName = appFile.getName();
+            apps.add(appName);
+        }
+    }
+
+    private Application getApplication(String appName) {
+        File appFile = new File("/bin/" + appName);
+        FileInputStream inputStream = new FileInputStream(appFile);
+        byte[] buff = new byte[1024];
+        int len;
+        StringBuilder content = new StringBuilder();
+        try {
+            while ((len = inputStream.read(buff)) != -1) {
+                content.append(new String(buff, 0, len));
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return new JavaApplication(appName, content.toString().trim());
     }
 
     /**
@@ -161,16 +202,15 @@ public class FsShell implements Command, Runnable {
      */
     private void execCommand(String input, OutputStream outputStream, InputStream inputStream) throws IOException {
         String command = InputParser.getCommand(input);
+        String[] args = InputParser.getArgs(input);
         try {
             input = handleNoSpaceRedirect(input.trim());
             if(input.isEmpty()) {
                 return;
             }
 
-            String[] args = InputParser.getArgs(input);
-
             if("pwd".equalsIgnoreCase(command)) {
-                outputStream.write(currentDir.getPath().getBytes());
+                outputStream.write(FsShellContext.getCurrentPath().getPath().getBytes());
                 outputStream.write("\n".getBytes());
             } else if("cd".equalsIgnoreCase(command)) {
                 executeCd(args);
@@ -178,25 +218,16 @@ public class FsShell implements Command, Runnable {
                 StreamUtil.writeOutputStream(out, "Bye~\n");
                 callback.onExit(0);
             } else {
-                if("ll".equalsIgnoreCase(command)) {
-                    command = "Ls";
-                    args = InputParser.getArgs(input + " -l");
-                }
-                Class<?> clazz = Class.forName("app.command." + command);
-                if(clazz.isAnnotationPresent(CommandLine.Command.class)) {
-                    CommandLine commandLine = new CommandLine(clazz.getDeclaredConstructor(String.class).newInstance(currentDir.getPath()));
-
-                    ((Base) commandLine.getCommand()).setIn(inputStream);
-                    ((Base) commandLine.getCommand()).setOut(outputStream);
-                    ((Base) commandLine.getCommand()).setErr(outputStream);
-
-                    // 命令使用错误提示
-                    commandLine.setParameterExceptionHandler((ex, parameters) -> {
-                        StreamUtil.writeOutputStream(err, ex.getMessage() + "\n");
-                        StreamUtil.writeOutputStream(out, commandLine.getUsageMessage());
-                        return CommandLine.ExitCode.SOFTWARE;
-                    });
-                    commandLine.execute(args);
+                if(apps.contains(command)) {
+                    Application app = getApplication(command);
+                    executor.execute(app, args, outputStream, inputStream);
+                    // todo: 应用的输出怎么绑定到终端上？
+                } else {
+                    if("ll".equalsIgnoreCase(command)) {
+                        command = "ls";
+                        args = InputParser.getArgs(input + " -l");
+                    }
+                    executeExternalCommand(command, args, outputStream, inputStream);
                 }
             }
         } catch (ClassNotFoundException e) {
@@ -208,25 +239,40 @@ public class FsShell implements Command, Runnable {
         }
     }
 
-    private void executeCd(String[] args) {
-        if(args.length == 0) {
-            currentDir = new File("/");
-        } else {
-            String dirPath = getAbsolutePath(args[0]);
-            File dir = new File(dirPath, true, false);
-            if(dir.exist()) {
-                currentDir = dir;
-            } else {
-                throw new CommandException("cd: " + dirPath + ": No such directory");
-            }
+    private void executeExternalCommand(String command, String[] args, OutputStream outputStream, InputStream inputStream)
+            throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+        // command首字母大写
+        command = command.substring(0, 1).toUpperCase() + command.substring(1);
+        Class<?> clazz = Class.forName("app.command." + command);
+        if(clazz.isAnnotationPresent(CommandLine.Command.class)) {
+            CommandLine commandLine = new CommandLine(
+                    clazz.getDeclaredConstructor().newInstance());
+
+            ((Base) commandLine.getCommand()).setIn(inputStream);
+            ((Base) commandLine.getCommand()).setOut(outputStream);
+            ((Base) commandLine.getCommand()).setErr(outputStream);
+
+            // 命令使用错误提示
+            commandLine.setParameterExceptionHandler((ex, parameters) -> {
+                StreamUtil.writeOutputStream(err, ex.getMessage() + "\n");
+                StreamUtil.writeOutputStream(out, commandLine.getUsageMessage());
+                return CommandLine.ExitCode.SOFTWARE;
+            });
+            commandLine.execute(args);
         }
     }
 
-    private String getAbsolutePath(String path) {
-        if(InputParser.isAbsolutePath(path)) {
-            return InputParser.trimPath(path);
+    private void executeCd(String[] args) {
+        if(args.length == 0) {
+            FsShellContext.setCurrentPath(new File("/"));
         } else {
-            return InputParser.trimPath(currentDir.getPath() + "/" + path);
+            String dirPath = InputParser.getAbsolutePath(args[0]);
+            File dir = new File(dirPath, true, false);
+            if(dir.exist()) {
+                FsShellContext.setCurrentPath(dir);
+            } else {
+                throw new CommandException("cd: " + dirPath + ": No such directory");
+            }
         }
     }
 

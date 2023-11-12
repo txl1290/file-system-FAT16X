@@ -1,8 +1,8 @@
 package app.application.inner;
 
-import app.application.Application;
+import app.application.JavaApplication;
 
-public class Grep extends Application {
+public class Grep extends JavaApplication {
 
     private static final String DEFAULT_CONTENT = "grep";
 
@@ -22,4 +22,5 @@ public class Grep extends Application {
     public String content() {
         return content != null ? content : DEFAULT_CONTENT;
     }
+
 }

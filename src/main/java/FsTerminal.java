@@ -38,7 +38,6 @@ public class FsTerminal {
         server.listen(PORT);
 
         FsShell shell = new FsShell();
-
         shell.setInputStream(System.in);
         shell.setOutputStream(System.out);
         shell.setErrorStream(System.out);

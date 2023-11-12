@@ -1,11 +1,24 @@
 package app.application;
 
+import utils.InputParser;
+
+import java.io.InputStream;
+import java.io.OutputStream;
+
 /**
  * 应用执行器
  */
 public class Executor {
 
-    public void execute(Application app) {
-        // 执行应用代码，这里使用的是java代码，实际上可以是任何语言
+    public void execute(Application app, String[] args, OutputStream out, InputStream in) {
+        app.setIn(in);
+        app.setOut(out);
+        app.setErr(out);
+        // 解析重定向
+        InputParser.RedirectParam redirectParam = InputParser.parseRedirect(args);
+        app.setArgs(redirectParam.getArgs());
+        app.setRedirectPath(redirectParam.getRedirectPath());
+        app.setRedirectPathAppend(redirectParam.getRedirectPathAppend());
+        app.run();
     }
 }
