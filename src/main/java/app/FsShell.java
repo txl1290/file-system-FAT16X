@@ -2,12 +2,10 @@ package app;
 
 import app.application.BaseApplication;
 import app.application.Executor;
-import app.application.JavaApplication;
 import app.command.base.Base;
 import app.exceptions.CommandException;
 import app.terminal.HistoryCompleter;
 import fs.io.File;
-import fs.io.FileInputStream;
 import org.apache.sshd.server.Environment;
 import org.apache.sshd.server.ExitCallback;
 import org.apache.sshd.server.channel.ChannelSession;
@@ -28,11 +26,9 @@ import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -51,9 +47,11 @@ public class FsShell implements Command, Runnable {
 
     private ThreadPoolExecutor threadPoolExecutor;
 
-    private Set<String> apps = new HashSet<>();
-
     private Executor executor = new Executor();
+
+    private File currentPath = new File("/");
+
+    private app.application.Scanner appScanner = new app.application.Scanner();
 
     {
         threadPoolExecutor = new ThreadPoolExecutor(10, 20, 60, java.util.concurrent.TimeUnit.SECONDS,
@@ -66,7 +64,7 @@ public class FsShell implements Command, Runnable {
             DefaultHistory history = new DefaultHistory();
             FsShellContext.setCurrentPath(new File("/"));
 
-            scanApp();
+            appScanner.scanApp();
 
             if(sshThread == null) {
                 Scanner scanner = new Scanner(in);
@@ -102,42 +100,13 @@ public class FsShell implements Command, Runnable {
     }
 
     /**
-     * 扫描所有安装的应用
-     */
-    private void scanApp() {
-        //简化PATH，这里特定指的是bin目录下的文件
-        File binDir = new File("/bin", true, false);
-        FileInputStream inputStream = new FileInputStream(binDir);
-        List<File> appFiles = inputStream.listFiles();
-        for (File appFile : appFiles) {
-            String appName = appFile.getName();
-            apps.add(appName);
-        }
-    }
-
-    private BaseApplication getApplication(String appName) {
-        File appFile = new File("/bin/" + appName);
-        FileInputStream inputStream = new FileInputStream(appFile);
-        byte[] buff = new byte[1024];
-        int len;
-        StringBuilder content = new StringBuilder();
-        try {
-            while ((len = inputStream.read(buff)) != -1) {
-                content.append(new String(buff, 0, len));
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return new JavaApplication(appName, content.toString().trim());
-    }
-
-    /**
      * 处理带管道的命令输入
      */
     private void execChannelCommand(String input) throws IOException {
         List<String> commandInputs = InputParser.parseChannel(input);
         Map<Integer, OutputStream> outputStreamMap = new HashMap<>();
         Map<Integer, InputStream> inputStreamMap = new HashMap<>();
+        Map<Integer, Boolean> channelStatusMap = new HashMap<>();
 
         for (int i = 0; i < commandInputs.size(); i++) {
             PipedOutputStream outputStream = new PipedOutputStream();
@@ -153,6 +122,8 @@ public class FsShell implements Command, Runnable {
             } else {
                 outputStreamMap.put(i, outputStream);
             }
+
+            channelStatusMap.put(i, false);
         }
 
         CountDownLatch latch = new CountDownLatch(commandInputs.size() - 1);
@@ -162,13 +133,25 @@ public class FsShell implements Command, Runnable {
                 String commandInput = commandInputs.get(i);
 
                 if(i == commandInputs.size() - 1) {
+                    if(i > 0) {
+                        while (Boolean.FALSE.equals(channelStatusMap.get(i - 1))) {
+                            Thread.sleep(100);
+                        }
+                    }
                     execCommand(commandInput.trim(), outputStreamMap.get(i), inputStreamMap.get(i));
                 } else {
                     int finalI = i;
                     threadPoolExecutor.execute(() -> {
+                        FsShellContext.setCurrentPath(currentPath);
                         try {
+                            if(finalI > 0) {
+                                while (Boolean.FALSE.equals(channelStatusMap.get(finalI - 1))) {
+                                    Thread.sleep(100);
+                                }
+                            }
                             execCommand(commandInput.trim(), outputStreamMap.get(finalI), inputStreamMap.get(finalI));
-                        } catch (IOException e) {
+                            channelStatusMap.put(finalI, true);
+                        } catch (IOException | InterruptedException e) {
                             e.printStackTrace();
                         } finally {
                             latch.countDown();
@@ -218,10 +201,10 @@ public class FsShell implements Command, Runnable {
                 StreamUtil.writeOutputStream(out, "Bye~\n");
                 callback.onExit(0);
             } else {
-                if(apps.contains(command)) {
-                    BaseApplication app = getApplication(command);
+                if(appScanner.isApp(command)) {
+                    BaseApplication app = appScanner.getApplication(command);
                     executor.execute(app, args, outputStream, inputStream);
-                    // todo: 应用的输出怎么绑定到终端上？
+                    outputStream.write("\n".getBytes());
                 } else {
                     if("ll".equalsIgnoreCase(command)) {
                         command = "ls";
@@ -274,6 +257,7 @@ public class FsShell implements Command, Runnable {
                 throw new CommandException("cd: " + dirPath + ": No such directory");
             }
         }
+        currentPath = FsShellContext.getCurrentPath();
     }
 
     /**

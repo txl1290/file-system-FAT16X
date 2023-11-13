@@ -57,7 +57,6 @@ public class InnerJavaCompiler {
             ByteArrayOutputStream out = (ByteArrayOutputStream) compiledClass.getDeclaredMethod("run", InputStream.class, String[].class)
                     .invoke(compiledClass.newInstance(), app.getIn(), app.getArgs());
             out.writeTo(app.getOut());
-            System.out.println("success");
         } else {
             // 处理编译错误
             for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
