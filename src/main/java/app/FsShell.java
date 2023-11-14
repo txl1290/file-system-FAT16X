@@ -106,7 +106,6 @@ public class FsShell implements Command, Runnable {
         List<String> commandInputs = InputParser.parseChannel(input);
         Map<Integer, OutputStream> outputStreamMap = new HashMap<>();
         Map<Integer, InputStream> inputStreamMap = new HashMap<>();
-        Map<Integer, Boolean> channelStatusMap = new HashMap<>();
 
         for (int i = 0; i < commandInputs.size(); i++) {
             PipedOutputStream outputStream = new PipedOutputStream();
@@ -122,8 +121,6 @@ public class FsShell implements Command, Runnable {
             } else {
                 outputStreamMap.put(i, outputStream);
             }
-
-            channelStatusMap.put(i, false);
         }
 
         CountDownLatch latch = new CountDownLatch(commandInputs.size() - 1);
@@ -133,25 +130,14 @@ public class FsShell implements Command, Runnable {
                 String commandInput = commandInputs.get(i);
 
                 if(i == commandInputs.size() - 1) {
-                    if(i > 0) {
-                        while (Boolean.FALSE.equals(channelStatusMap.get(i - 1))) {
-                            Thread.sleep(100);
-                        }
-                    }
                     execCommand(commandInput.trim(), outputStreamMap.get(i), inputStreamMap.get(i));
                 } else {
                     int finalI = i;
                     threadPoolExecutor.execute(() -> {
                         FsShellContext.setCurrentPath(currentPath);
                         try {
-                            if(finalI > 0) {
-                                while (Boolean.FALSE.equals(channelStatusMap.get(finalI - 1))) {
-                                    Thread.sleep(100);
-                                }
-                            }
                             execCommand(commandInput.trim(), outputStreamMap.get(finalI), inputStreamMap.get(finalI));
-                            channelStatusMap.put(finalI, true);
-                        } catch (IOException | InterruptedException e) {
+                        } catch (IOException e) {
                             e.printStackTrace();
                         } finally {
                             latch.countDown();
