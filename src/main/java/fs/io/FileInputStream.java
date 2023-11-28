@@ -45,12 +45,14 @@ public class FileInputStream extends InputStream {
                 return -1;
             }
 
-            byte[] data = new byte[len];
+            int dataSize = Math.min(len, file.getFileSize() - pos);
+
+            byte[] data = new byte[dataSize];
             File.fs.setFdOffset(fd, pos);
-            File.fs.read(fd, data, len);
-            System.arraycopy(data, 0, b, off, len);
+            File.fs.read(fd, data, dataSize);
+            System.arraycopy(data, 0, b, off, dataSize);
             pos += len;
-            return b.length;
+            return dataSize;
         }
     }
 

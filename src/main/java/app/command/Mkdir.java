@@ -14,13 +14,9 @@ public class Mkdir extends Base {
     @CommandLine.Option(names = "-p", description = "Create parent directories if they do not exist")
     private boolean createParent = false;
 
-    public Mkdir(String curDir) {
-        super(curDir);
-    }
-
     @Override
     protected void executeCommand() {
-        String absPath = getAbsolutePath(dirPath);
+        String absPath = InputParser.getAbsolutePath(dirPath);
         if(createParent) {
             createParent(absPath);
         } else {

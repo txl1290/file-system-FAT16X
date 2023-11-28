@@ -4,6 +4,7 @@ import app.command.base.Base;
 import fs.io.File;
 import fs.io.FileInputStream;
 import picocli.CommandLine;
+import utils.InputParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -17,13 +18,9 @@ public class Ls extends Base {
     @CommandLine.Option(names = "-l", description = "Show the details of the files and dirs")
     private boolean showDetails;
 
-    public Ls(String curDir) {
-        super(curDir);
-    }
-
     @Override
     protected void executeCommand() throws IOException {
-        path = getAbsolutePath(path);
+        path = InputParser.getAbsolutePath(path);
 
         File dir = new File(path, true, false);
 

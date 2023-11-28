@@ -19,6 +19,8 @@ import java.util.Optional;
 
 public class FatFileSystem implements IFileSystem {
 
+    public static final String APP_PATH = "/bin";
+
     FAT16X fatfs;
 
     Disk disk;

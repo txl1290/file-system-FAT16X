@@ -4,6 +4,7 @@ import app.command.base.Base;
 import fs.io.File;
 import fs.io.FileInputStream;
 import picocli.CommandLine;
+import utils.InputParser;
 
 import java.io.IOException;
 
@@ -13,13 +14,9 @@ public class Cat extends Base {
     @CommandLine.Parameters(index = "0", description = "The file path")
     private String path;
 
-    public Cat(String curDir) {
-        super(curDir);
-    }
-
     @Override
     protected void executeCommand() throws IOException {
-        File file = new File(getAbsolutePath(path));
+        File file = new File(InputParser.getAbsolutePath(path));
         in = new FileInputStream(file);
         byte[] data = new byte[file.getFileSize()];
         in.read(data);
